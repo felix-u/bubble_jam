@@ -6,6 +6,7 @@ import "core:strings"
 import "base:intrinsics"
 import "base:runtime"
 import "core:math"
+import la "core:math/linalg"
 
 breakpoint :: intrinsics.debug_trap
 
@@ -314,7 +315,21 @@ main :: proc() {
         if shoot {
             target := world_mouse_pos
             gun_center := [2]f32{ gun.x + gun.width / 2, gun.y + gun.height / 2 }
-            rl.DrawLineV(screen_from_world(gun_center), screen_from_world(target), auto_cast colors[.purple])
+
+            bullet_radius :: 0.01
+            bullet := Entity{
+                x = gun_center.x - bullet_radius,
+                y = gun_center.y - bullet_radius,
+                width = bullet_radius * 2,
+                height = bullet_radius * 2,
+                color = .blue,
+            }
+            bullet.velocity = { target.x - bullet.x, target.y - bullet.y }
+            bullet.velocity = la.normalize(bullet.velocity)
+            bullet_speed :: 1.5
+            bullet.velocity *= bullet_speed
+
+            push_entity(bullet, .bullet_bubbles)
         }
 
         for entity_id in views[.bubbles].indices { //update bubbles
@@ -351,6 +366,10 @@ main :: proc() {
                     break
                 }
             }
+        }
+
+        for entity_id in views[.active].indices {
+            entity := &entity_backing_memory[entity_id]
             entity.x += entity.velocity.x * delta_time
             entity.y += entity.velocity.y * delta_time
         }
