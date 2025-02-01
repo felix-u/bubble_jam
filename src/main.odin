@@ -6,7 +6,6 @@ import "core:fmt"
 import "core:strings"
 import "base:intrinsics"
 import "base:runtime"
-import "core:math"
 
 breakpoint :: intrinsics.debug_trap
 
@@ -41,26 +40,47 @@ push_entity :: proc(entity: Entity) {
 }
 
 screen_width: f32 = 960
-screen_from_world_scalar: f32
-screen_width_update_frame_local :: proc() {
+screen_height: f32 = 540
+screen_from_world_scalar_: f32
+screen_y_margin: f32
+dpi: f32 = 1
+screen_factors_update_frame_local :: proc() {
     screen_width = cast(f32) rl.GetScreenWidth()
-    screen_from_world_scalar = screen_width / rl.GetWindowScaleDPI().x
+    screen_height = cast(f32) rl.GetScreenHeight()
+
+    dpi = rl.GetWindowScaleDPI().x
+    screen_from_world_scalar_ = screen_width / dpi
+
+    playable_area_screen_height := screen_width * world_height
+    overheight := screen_height - playable_area_screen_height
+
+    if overheight <= 0 {
+        screen_y_margin = 0
+        return
+    }
+
+    screen_y_margin = overheight / 2 / dpi
 }
 
-screen_from_world_rect :: #force_inline proc(rect: rl.Rectangle) -> rl.Rectangle {
-    result := transmute([4]f32) rect * screen_from_world_scalar
-    return transmute(rl.Rectangle) result
+screen_from_world :: #force_inline proc(value: $T) -> T {
+    when T == rl.Rectangle {
+        result := transmute(T) screen_from_world(transmute([4]f32) value)
+    } else {
+        result: T = auto_cast (auto_cast value * screen_from_world_scalar_)
+        when intrinsics.type_is_array(T) {
+            result.y += screen_y_margin
+        }
+    }
+    return result
 }
 
-screen_from_world_position :: #force_inline proc(position: [2]f32) -> [2]f32 {
-    return position * screen_from_world_scalar
-}
+world_height: f32 : 9.0 / 16.0
 
 main :: proc() {
     rl.SetTraceLogLevel(.WARNING)
     rl.SetConfigFlags({.WINDOW_RESIZABLE, .WINDOW_HIGHDPI})
 
-    rl.InitWindow(auto_cast screen_width, 540, game_name)
+    rl.InitWindow(auto_cast screen_width, auto_cast screen_height, game_name)
     defer rl.CloseWindow()
 
     rl.SetTargetFPS(rl.GetMonitorRefreshRate(rl.GetCurrentMonitor()))
@@ -89,17 +109,29 @@ main :: proc() {
         position += height * 2
     }
 
+    push_entity({
+        x = 0,
+        width = 1,
+        y = world_height,
+        height = 10,
+    })
+
     for !rl.WindowShouldClose() {
+        if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.B) {
+            // TODO(felix): cap delta time here
+            breakpoint()
+        }
+
         rl.BeginDrawing()
         defer rl.EndDrawing()
         rl.ClearBackground(auto_cast colors[.light_grey])
 
-        screen_width_update_frame_local()
+        screen_factors_update_frame_local()
 
         for entity_id in entity_view {
             entity := &entity_backing_array[entity_id]
 
-            rl.DrawRectangleRec(screen_from_world_rect(entity.rect), auto_cast colors[entity.color])
+            rl.DrawRectangleRec(screen_from_world(entity.rect), auto_cast colors[entity.color])
         }
 
         text := fmt.tprint(len(entity_view), "bonjour")
@@ -107,33 +139,45 @@ main :: proc() {
 
         cell_size : f32 = auto_cast 1/64
         draw_grid(cell_size)
+
+        boundary_color := rl.Color{ 255, 0, 0, 255 }
+        thickness_world :: 0.01
+        thickness := screen_from_world(cast(f32) thickness_world)
+
+        top_boundary_start := screen_from_world([2]f32{ 0, -thickness_world })
+        top_boundary_end := screen_from_world([2]f32{ 1, -thickness_world })
+        rl.DrawLineEx(top_boundary_start, top_boundary_end, thickness * 2, boundary_color)
+
+        bottom_boundary_start := screen_from_world([2]f32{ 0, world_height + thickness_world })
+        bottom_boundary_end := screen_from_world([2]f32{ 1, world_height + thickness_world })
+        rl.DrawLineEx(bottom_boundary_start, bottom_boundary_end, thickness * 2, boundary_color)
     }
 }
 
 draw_grid :: proc(cell_size: f32, color: Color = .black) {
     tint := colors[color]
     for x : f32 = 0.0; x < 1.0; x += cell_size {
-        screen_start_pos := screen_from_world_position({ x, 0 })
-        screen_end_pos := screen_from_world_position({ x, 1 })
+        screen_start_pos := screen_from_world([2]f32{ x, 0 })
+        screen_end_pos := screen_from_world([2]f32{ x, 1 })
         rl.DrawLineEx(screen_start_pos, screen_end_pos, 1, auto_cast tint)
 
     }
     for y: f32 = 0.0; y < 16/9; y += cell_size {
-        screen_start_pos := screen_from_world_position({ 0, y })
-        screen_end_pos := screen_from_world_position({ 1, y })
+        screen_start_pos := screen_from_world([2]f32{ 0, y })
+        screen_end_pos := screen_from_world([2]f32{ 1, y })
         rl.DrawLineEx(screen_start_pos, screen_end_pos, 1, auto_cast tint)
     }
 }
 
-draw_text :: proc(text_string: string, position_normalised: [2]f32, font_size_normalised: f32, color: Color = .black, origin_normalised: [2]f32 = {}, rotation: f32 = 0, spacing: f32 = 1) {
+draw_text :: proc(text_string: string, position_world: [2]f32, font_size_world: f32, color: Color = .black, rotation: f32 = 0, spacing: f32 = 1) {
     temp := runtime.default_temp_allocator_temp_begin()
     defer runtime.default_temp_allocator_temp_end(temp)
 
     font := rl.GetFontDefault()
     text := strings.clone_to_cstring(text_string, context.temp_allocator)
-    position := position_normalised * screen_from_world_scalar
-    origin := origin_normalised * screen_from_world_scalar
-    font_size := font_size_normalised * screen_from_world_scalar
+    position := screen_from_world(position_world)
+    origin := [2]f32{}
+    font_size := screen_from_world(font_size_world)
     tint := colors[color]
     rl.DrawTextPro(font, text, position, origin, rotation, font_size, spacing, auto_cast tint)
 }
