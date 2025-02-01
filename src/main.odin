@@ -188,7 +188,14 @@ main :: proc() {
         screen_factors_update_frame_local()
 
         { // ed
-            if rl.IsMouseButtonReleased(.LEFT) && rl.IsKeyDown(.LEFT_SHIFT) {
+            if rl.IsKeyReleased(.LEFT_SHIFT) {
+                // obstacle_placement_unnormalized_rectangle.x = 0
+                // obstacle_placement_unnormalized_rectangle.y = 0
+                // obstacle_placement_unnormalized_rectangle.width = 0
+                // obstacle_placement_unnormalized_rectangle.height = 0
+            }
+            if rl.IsMouseButtonReleased(.LEFT) && obstacle_placement_unnormalized_rectangle.width != 0 && obstacle_placement_unnormalized_rectangle.height != 0 {
+
                 obstacle_rectangle := absolute_normalized_rectangle(obstacle_placement_unnormalized_rectangle)
                 if obstacle_rectangle.width < cell_size {
                     obstacle_rectangle.width = cell_size
@@ -217,7 +224,7 @@ main :: proc() {
                 obstacle_placement_unnormalized_rectangle.x = world_mouse_pos.x
                 obstacle_placement_unnormalized_rectangle.y = world_mouse_pos.y
             }
-            else if rl.IsMouseButtonDown(.LEFT) && rl.IsKeyDown(.LEFT_SHIFT) {
+            else if rl.IsMouseButtonDown(.LEFT) && obstacle_placement_unnormalized_rectangle.x != 0 && obstacle_placement_unnormalized_rectangle.y != 0 {
                 world_mouse_pos := world_from_screen(rl.GetMousePosition())
                 obstacle_placement_unnormalized_rectangle.width = world_mouse_pos.x - obstacle_placement_unnormalized_rectangle.x
                 obstacle_placement_unnormalized_rectangle.height = world_mouse_pos.y - obstacle_placement_unnormalized_rectangle.y
@@ -240,6 +247,18 @@ main :: proc() {
                         }
                     }
                 }
+            }
+
+            if rl.IsMouseButtonPressed(.MIDDLE) {
+                // world_mouse_pos := world_from_screen(rl.GetMousePosition())
+                // goal_entity := Entity{
+                //     x = world_mouse_pos.x,
+                //     y = world_mouse_pos.y,
+                //     width = 0.05,
+                //     height = 0.05,
+                //     color = .red,
+                // }
+                // push_entity(goal_entity, &views[.goals])
             }
         }
 
@@ -309,17 +328,18 @@ main :: proc() {
                 is_mouse_click_intersect_with_bubble := rl.CheckCollisionPointCircle(world_mouse_pos, [2]f32{entity.x, entity.y}, entity.radius)
                 if is_mouse_click_intersect_with_bubble  {
                     vector_from_click_to_bubble := [2]f32{entity.x - world_mouse_pos.x, entity.y - world_mouse_pos.y}
-                    first_bubble_velocity := vector_from_click_to_bubble * 2
-                    second_bubble_velocity := [2]f32{-first_bubble_velocity.x, -first_bubble_velocity.y}
+                    velocity := vector_from_click_to_bubble * 2
+                    first_bubble_velocity_rotated_90_degrees := rl.Vector2Rotate(velocity, 0.6)
+                    second_bubble_velocity_rotate_90_degrees := rl.Vector2Rotate(velocity, -0.6)
                     entity.radius /= 2
-                    entity.velocity = first_bubble_velocity
+                    entity.velocity = first_bubble_velocity_rotated_90_degrees
 
                     new_bubble := Entity{
                         x = entity.x,
                         y = entity.y,
                         radius = entity.radius,
                         color = entity.color,
-                        velocity = second_bubble_velocity,
+                        velocity = second_bubble_velocity_rotate_90_degrees,
                     }
                     push_entity(new_bubble, &views[.bubbles])
                     break
@@ -338,15 +358,12 @@ main :: proc() {
                 screen_obstacle_rectangle := screen_from_world(obstacle.rect)
                 did_bubble_collide_with_obstacle := rl.CheckCollisionCircleRec([2]f32{screen_bubble_pos.x, screen_bubble_pos.y}, screen_bubble_radius, screen_obstacle_rectangle)
                 if did_bubble_collide_with_obstacle {
-                    append_elem(&views[.freelist].indices, entity_id)
                     index, found := slice.linear_search(views[.bubbles].indices[:], entity_id)
                     if found {
                         unordered_remove(&views[.bubbles].indices, index)
                     }
-                    index, found = slice.linear_search(views[.all].indices[:], entity_id)
-                    if found {
-                        unordered_remove(&views[.all].indices, index)
-                    }
+                    entity.pop_anim_time_amount = 0.25
+                    entity.pop_anim_timer = entity.pop_anim_time_amount
                     index, found = slice.linear_search(views[.popping_bubbles].indices[:], entity_id)
                     if !found {
                         append_elem(&views[.popping_bubbles].indices, entity_id)
@@ -354,6 +371,31 @@ main :: proc() {
                     break
                 }
             }
+        }
+
+        for entity_id in views[.popping_bubbles].indices { // popping bubbles update
+            entity := &entity_backing_memory[entity_id]
+            entity.pop_anim_timer -= delta_time
+            entity.radius += delta_time * 0.5
+            if entity.pop_anim_timer <= 0 {
+                append_elem(&views[.freelist].indices, entity_id)
+                index, found := slice.linear_search(views[.popping_bubbles].indices[:], entity_id)
+                if found {
+                    unordered_remove(&views[.popping_bubbles].indices, index)
+                }
+                index, found = slice.linear_search(views[.all].indices[:], entity_id)
+                if found {
+                    unordered_remove(&views[.all].indices, index)
+                }
+            }
+        }
+
+        for entity_id in views[.popping_bubbles].indices { // draw popping bubbles
+            // will be drawn as circle lines instead of solid
+            bubble := &entity_backing_memory[entity_id]
+            screen_pos := screen_from_world([2]f32{ bubble.x, bubble.y })
+            screen_radius := screen_from_world(bubble.radius)
+            rl.DrawCircleLinesV(screen_pos, screen_radius, auto_cast colors[bubble.color])
         }
 
 
