@@ -6,6 +6,7 @@ import "core:fmt"
 import "core:strings"
 import "base:intrinsics"
 import "base:runtime"
+import "core:math"
 
 breakpoint :: intrinsics.debug_trap
 
@@ -27,16 +28,54 @@ Entity :: struct {
 
 ENTITY_CAP :: 64
 entity_backing_memory: [ENTITY_CAP]Entity
-entity_backing_array := slice.into_dynamic(entity_backing_memory[:])
 
 Entity_Index :: distinct int
 entity_view_backing_memory: [ENTITY_CAP]Entity_Index
 entity_view := slice.into_dynamic(entity_view_backing_memory[:])
 
-push_entity :: proc(entity: Entity) {
-    id := len(entity_backing_array)
-    append_elem(&entity_backing_array, entity)
-    append_elem(&entity_view, auto_cast id)
+Entity_View :: struct {
+    indices: [dynamic]Entity_Index,
+    backing_memory: [ENTITY_CAP]Entity_Index,
+}
+
+View_Id :: enum {
+    bubbles,
+    obstacles,
+    freelist,
+    all,
+}
+
+entity_view_init :: proc(view: ^Entity_View) -> Entity_View {
+    view.indices = slice.into_dynamic(view.backing_memory[:])
+    return view^
+}
+
+views := [View_Id]Entity_View{
+    .bubbles = entity_view_init(&{}),
+    .obstacles = entity_view_init(&{}),
+    .freelist = entity_view_init(&{}),
+    .all = entity_view_init(&{}),
+}
+
+nb_cells_width : f32 = 32
+nb_cells_height : f32 = nb_cells_width / f32(16) * f32(9)
+
+cell_size : f32 = auto_cast f32(1.0)/nb_cells_width
+
+// push_entity :: proc(entity: Entity) {
+//     id := len(entity_backing_array)
+//     append_elem(&entity_backing_array, entity)
+//     append_elem(&entity_view, auto_cast id)
+// }
+
+push_entity :: proc(entity: Entity, views_to_append: ..^Entity_View) -> Entity_Index {
+    index, ok := pop_safe(&views[.freelist].indices)
+    append_elem(&views[.all].indices, index)
+    if !ok do return Entity_Index(0)
+    entity_backing_memory[index] = entity
+    
+    for view in views_to_append do append_elem(&view.indices, index)
+    return index
 }
 
 screen_width: f32 = 960
@@ -74,9 +113,30 @@ screen_from_world :: #force_inline proc(value: $T) -> T {
     return result
 }
 
+world_from_screen_position :: #force_inline proc(position: [2]f32) -> [2]f32 {
+    return position / screen_from_world_scalar_
+}
+world_from_screen_rect :: #force_inline proc(rect: rl.Rectangle) -> rl.Rectangle {
+    result := transmute([4]f32) rect / screen_from_world_scalar_
+    return transmute(rl.Rectangle) result
+}
+
+absolute_normalized_rectangle :: proc(r: rl.Rectangle) -> rl.Rectangle {
+    ret := rl.Rectangle{
+        x = math.min(r.x, r.x + r.width),
+        y = math.min(r.y, r.y + r.height),
+        width = math.abs(r.width),
+        height = math.abs(r.height),
+    }
+    return ret
+}
+
 world_height: f32 : 9.0 / 16.0
 
 main :: proc() {
+
+    for i in 1 ..< ENTITY_CAP do append_elem(&views[.freelist].indices, cast(Entity_Index) i)
+
     rl.SetTraceLogLevel(.WARNING)
     rl.SetConfigFlags({.WINDOW_RESIZABLE, .WINDOW_HIGHDPI})
 
@@ -91,7 +151,7 @@ main :: proc() {
         width = 0.01, height = 0.01,
         color = .blue,
     }
-    push_entity(bubble_initial_state)
+    push_entity(bubble_initial_state, &views[.bubbles])
 
     ratios := [?]f32{ 0.1, 0.25, 0.5, 0.8, 0.9, 0.99, 1 }
     height :: 0.01
@@ -128,8 +188,36 @@ main :: proc() {
 
         screen_factors_update_frame_local()
 
-        for entity_id in entity_view {
-            entity := &entity_backing_array[entity_id]
+        { // ed
+            if rl.IsMouseButtonReleased(.LEFT) {
+                // if obstacle_placement_unnormalized_rectangle.width > 0.0 {
+
+                // }
+
+                // obstacle_placement_unnormalized_rectangle := rl.Rectangle{0,0,0,0}
+            }
+            else if rl.IsMouseButtonPressed(.LEFT) {
+                world_mouse_pos := world_from_screen_position(rl.GetMousePosition())
+                r := rl.Rectangle{
+                    x = world_mouse_pos.x,
+                    y = world_mouse_pos.y,
+                    width = cell_size,
+                    height = cell_size,
+                }
+                // world_from_screen_rect(r)
+                obstacle_entity := Entity{
+                    x = r.x,
+                    y = r.y,
+                    width = r.width,
+                    height = r.height,
+                    color = .black,
+                }
+                push_entity(obstacle_entity, &views[.obstacles])
+            }
+        }
+
+        for entity_id in views[.all].indices { // draw all entities
+            entity := &entity_backing_memory[entity_id]
 
             rl.DrawRectangleRec(screen_from_world(entity.rect), auto_cast colors[entity.color])
         }
@@ -137,7 +225,6 @@ main :: proc() {
         text := fmt.tprint(len(entity_view), "bonjour")
         draw_text(text, { 0.1, 0.3 }, 0.05)
 
-        cell_size : f32 = auto_cast 1/64
         draw_grid(cell_size)
 
         boundary_color := rl.Color{ 255, 0, 0, 255 }
