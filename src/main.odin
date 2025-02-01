@@ -264,14 +264,10 @@ main :: proc() {
             }
 
             if rl.IsMouseButtonPressed(.MIDDLE) {
-                // goal_entity := Entity{
-                //     x = world_mouse_pos.x,
-                //     y = world_mouse_pos.y,
-                //     width = 0.05,
-                //     height = 0.05,
-                //     color = .red,
-                // }
-                // push_entity(goal_entity, &views[.goals])
+                bubble_to_create := bubble_initial_state
+                bubble_to_create.x = world_mouse_pos.x
+                bubble_to_create.y = world_mouse_pos.y
+                push_entity(bubble_to_create, .bubbles)
             }
         }
 
