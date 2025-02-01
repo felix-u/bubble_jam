@@ -11,16 +11,19 @@ breakpoint :: intrinsics.debug_trap
 
 game_name :: "bubble"
 
-Color :: enum { black, blue, purple, light_grey }
+Color :: enum { black, blue, purple, red, white, light_grey }
 colors := [Color][4]u8{
     .black = { 0, 0, 0, 255 },
     .blue = { 0, 0, 255, 255 },
     .purple = { 100, 0, 255, 255 },
+    .red = { 255, 0, 0, 255 },
     .light_grey = { 200, 200, 200, 255 },
+    .white = { 255, 255, 255, 255 },
 }
 
 Entity :: struct {
     using rect: rl.Rectangle,
+    radius: f32,
     velocity: [2]f32,
     accel: [2]f32,
     color: Color,
@@ -159,6 +162,15 @@ main :: proc() {
     }
     gun_id := push_entity(gun_initial_state, &views[.guns])
 
+    initial_bubble_radius :: 0.05
+    bubble_initial_state := Entity{
+        x = 0.5,
+        y = 0.3,
+        radius = initial_bubble_radius,
+        color = .blue,
+    }
+    push_entity(bubble_initial_state, &views[.bubbles])
+
     for !rl.WindowShouldClose() {
         if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.B) {
             // TODO(felix): cap delta time here
@@ -172,7 +184,7 @@ main :: proc() {
         screen_factors_update_frame_local()
 
         { // ed
-            if rl.IsMouseButtonReleased(.LEFT) {
+            if rl.IsMouseButtonReleased(.LEFT) && rl.IsKeyDown(.LEFT_SHIFT) {
                 obstacle_rectangle := absolute_normalized_rectangle(obstacle_placement_unnormalized_rectangle)
                 if obstacle_rectangle.width < cell_size {
                     obstacle_rectangle.width = cell_size
@@ -196,17 +208,17 @@ main :: proc() {
                 push_entity(obstacle_entity, &views[.obstacles])
                 obstacle_placement_unnormalized_rectangle = rl.Rectangle{0,0,0,0}
             }
-            else if rl.IsMouseButtonPressed(.LEFT) {
+            else if rl.IsMouseButtonPressed(.LEFT) && rl.IsKeyDown(.LEFT_SHIFT) {
                 world_mouse_pos := world_from_screen(rl.GetMousePosition())
                 obstacle_placement_unnormalized_rectangle.x = world_mouse_pos.x
                 obstacle_placement_unnormalized_rectangle.y = world_mouse_pos.y
             }
-            else if rl.IsMouseButtonDown(.LEFT) {
+            else if rl.IsMouseButtonDown(.LEFT) && rl.IsKeyDown(.LEFT_SHIFT) {
                 world_mouse_pos := world_from_screen(rl.GetMousePosition())
                 obstacle_placement_unnormalized_rectangle.width = world_mouse_pos.x - obstacle_placement_unnormalized_rectangle.x
                 obstacle_placement_unnormalized_rectangle.height = world_mouse_pos.y - obstacle_placement_unnormalized_rectangle.y
             }
-            else if rl.IsMouseButtonPressed(.RIGHT) {
+            else if rl.IsMouseButtonPressed(.RIGHT) && rl.IsKeyDown(.LEFT_SHIFT) {
                 // delete any colliding obstacles
                 world_mouse_pos := world_from_screen(rl.GetMousePosition())
                 for entity_id in views[.obstacles].indices {
@@ -237,14 +249,44 @@ main :: proc() {
         gun.x = clamp(gun.x, 0, 1 - gun.width)
         gun.y = clamp(gun.y, 0, world_height - gun.height)
 
+        for entity_id in views[.bubbles].indices { //update bubbles
+            entity := &entity_backing_memory[entity_id]
+            world_mouse_pos := world_from_screen(rl.GetMousePosition())
+            is_move_input := rl.IsMouseButtonPressed(.LEFT)
+            if is_move_input {
+                is_mouse_click_intersect_with_bubble := rl.CheckCollisionPointCircle(world_mouse_pos, [2]f32{entity.x, entity.y}, entity.radius)
+                if is_mouse_click_intersect_with_bubble  {
+                    
+                }
+            }
+           
+        }
+
         for entity_id in views[.all].indices { // draw all entities
             entity := entity_backing_memory[entity_id]
             rl.DrawRectangleRec(screen_from_world(entity.rect), auto_cast colors[entity.color])
         }
 
+        for entity_id in views[.bubbles].indices { // draw all bubbles
+            bubble := &entity_backing_memory[entity_id]
+            screen_pos := screen_from_world([2]f32{ bubble.x, bubble.y })
+            screen_radius := screen_from_world(bubble.radius)
+            rl.DrawCircleV(screen_pos, screen_radius, auto_cast colors[bubble.color])
+        }
+
         { // draw placement rectangle
             obstacle_placement_rectangle := absolute_normalized_rectangle(obstacle_placement_unnormalized_rectangle)
             rl.DrawRectangleRec(screen_from_world(obstacle_placement_rectangle), auto_cast colors[.black])
+        }
+
+        { // draw debug visualizer
+            // draw small circle where mouse is being held down with left click
+            if rl.IsMouseButtonDown(.LEFT) {
+                world_mouse_pos := world_from_screen(rl.GetMousePosition())
+                screen_pos := screen_from_world([2]f32{ world_mouse_pos.x, world_mouse_pos.y })
+                rl.DrawCircleV(screen_pos, 20, auto_cast colors[.red])
+                rl.DrawCircleV(screen_pos, 5, auto_cast colors[.white])
+            }
         }
 
         draw_grid(cell_size)
