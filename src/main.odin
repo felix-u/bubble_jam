@@ -58,7 +58,7 @@ views := [View_Id]Entity_View{
     .all = entity_view_init(&{}),
 }
 
-nb_cells_width : f32 = 32
+nb_cells_width : f32 = 64
 nb_cells_height : f32 = nb_cells_width / f32(16) * f32(9)
 
 cell_size : f32 = auto_cast f32(1.0)/nb_cells_width
@@ -192,6 +192,25 @@ main :: proc() {
                 world_mouse_pos := world_from_screen(rl.GetMousePosition())
                 obstacle_placement_unnormalized_rectangle.width = world_mouse_pos.x - obstacle_placement_unnormalized_rectangle.x
                 obstacle_placement_unnormalized_rectangle.height = world_mouse_pos.y - obstacle_placement_unnormalized_rectangle.y
+            }
+            else if rl.IsMouseButtonPressed(.RIGHT) {
+                // delete any colliding obstacles
+                world_mouse_pos := world_from_screen(rl.GetMousePosition())
+                for entity_id in views[.obstacles].indices {
+                    entity := entity_backing_memory[entity_id]
+                    did_mouse_rectangle_intersect := rl.CheckCollisionPointRec(world_mouse_pos, entity.rect)
+                    if did_mouse_rectangle_intersect {
+                        append_elem(&views[.freelist].indices, entity_id)
+                        index, found := slice.linear_search(views[.obstacles].indices[:], entity_id)
+                        if found {
+                            unordered_remove(&views[.obstacles].indices, index)
+                        }
+                        index, found = slice.linear_search(views[.all].indices[:], entity_id)
+                        if found {
+                            unordered_remove(&views[.all].indices, index)
+                        }
+                    }
+                }
             }
         }
 
