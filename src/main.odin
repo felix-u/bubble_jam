@@ -121,6 +121,7 @@ world_from_screen_rect :: #force_inline proc(rect: rl.Rectangle) -> rl.Rectangle
     return transmute(rl.Rectangle) result
 }
 
+obstacle_placement_unnormalized_rectangle := rl.Rectangle{0,0,0,0}
 absolute_normalized_rectangle :: proc(r: rl.Rectangle) -> rl.Rectangle {
     ret := rl.Rectangle{
         x = math.min(r.x, r.x + r.width),
@@ -190,29 +191,27 @@ main :: proc() {
 
         { // ed
             if rl.IsMouseButtonReleased(.LEFT) {
-                // if obstacle_placement_unnormalized_rectangle.width > 0.0 {
-
-                // }
-
-                // obstacle_placement_unnormalized_rectangle := rl.Rectangle{0,0,0,0}
-            }
-            else if rl.IsMouseButtonPressed(.LEFT) {
-                world_mouse_pos := world_from_screen_position(rl.GetMousePosition())
-                r := rl.Rectangle{
-                    x = world_mouse_pos.x,
-                    y = world_mouse_pos.y,
-                    width = cell_size,
-                    height = cell_size,
-                }
+                obstacle_rectangle := absolute_normalized_rectangle(obstacle_placement_unnormalized_rectangle)
                 // world_from_screen_rect(r)
                 obstacle_entity := Entity{
-                    x = r.x,
-                    y = r.y,
-                    width = r.width,
-                    height = r.height,
+                    x = obstacle_rectangle.x,
+                    y = obstacle_rectangle.y,
+                    width = obstacle_rectangle.width,
+                    height = obstacle_rectangle.height,
                     color = .black,
                 }
                 push_entity(obstacle_entity, &views[.obstacles])
+                obstacle_placement_unnormalized_rectangle = rl.Rectangle{0,0,0,0}
+            }
+            else if rl.IsMouseButtonPressed(.LEFT) {
+                world_mouse_pos := world_from_screen_position(rl.GetMousePosition())
+                obstacle_placement_unnormalized_rectangle.x = world_mouse_pos.x
+                obstacle_placement_unnormalized_rectangle.y = world_mouse_pos.y
+            }
+            else if rl.IsMouseButtonDown(.LEFT) {
+                world_mouse_pos := world_from_screen_position(rl.GetMousePosition())
+                obstacle_placement_unnormalized_rectangle.width = world_mouse_pos.x - obstacle_placement_unnormalized_rectangle.x
+                obstacle_placement_unnormalized_rectangle.height = world_mouse_pos.y - obstacle_placement_unnormalized_rectangle.y
             }
         }
 
@@ -220,6 +219,11 @@ main :: proc() {
             entity := &entity_backing_memory[entity_id]
 
             rl.DrawRectangleRec(screen_from_world(entity.rect), auto_cast colors[entity.color])
+        }
+
+        { // draw placement rectangle
+            obstacle_placement_rectangle := absolute_normalized_rectangle(obstacle_placement_unnormalized_rectangle)
+            rl.DrawRectangleRec(screen_from_world(obstacle_placement_rectangle), auto_cast colors[.black])
         }
 
         text := fmt.tprint(len(entity_view), "bonjour")
