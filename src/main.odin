@@ -296,11 +296,16 @@ main :: proc() {
             if is_move_input {
                 is_mouse_click_intersect_with_bubble := rl.CheckCollisionPointCircle(world_mouse_pos, [2]f32{entity.x, entity.y}, entity.radius)
                 if is_mouse_click_intersect_with_bubble  {
-                    
+                    vector_from_click_to_bubble := [2]f32{world_mouse_pos.x - entity.x, world_mouse_pos.y - entity.y}
+                    vector_from_bubble_to_click := [2]f32{-vector_from_click_to_bubble.x, -vector_from_click_to_bubble.y}
+                    entity.velocity = vector_from_bubble_to_click * 2
+                    entity.radius *= 1.05
                 }
             }
-           
+            entity.x += entity.velocity.x * delta_time
+            entity.y += entity.velocity.y * delta_time
         }
+
 
         for entity_id in views[.all].indices { // draw all entities
             entity := entity_backing_memory[entity_id]
