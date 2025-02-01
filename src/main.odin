@@ -5,13 +5,15 @@ import "core:slice"
 import "core:fmt"
 import "core:strings"
 import "base:intrinsics"
+import "base:runtime"
 
 breakpoint :: intrinsics.debug_trap
 
 game_name :: "bubble"
 
-Color :: enum { blue, light_grey }
+Color :: enum { black, blue, light_grey }
 colors := [Color][4]u8{
+    .black = { 0, 0, 0, 255 },
     .blue = { 0, 0, 255, 255 },
     .light_grey = { 200, 200, 200, 255 },
 }
@@ -42,6 +44,11 @@ screen_from_world_scalar: f32
 screen_width_update_frame_local :: proc() {
     screen_width = cast(f32) rl.GetScreenWidth()
     screen_from_world_scalar = screen_width / rl.GetWindowScaleDPI().x
+}
+
+screen_from_world_rect :: #force_inline proc(rect: rl.Rectangle) -> rl.Rectangle {
+    result := transmute([4]f32) rect * screen_from_world_scalar
+    return transmute(rl.Rectangle) result
 }
 
 main :: proc() {
@@ -87,11 +94,23 @@ main :: proc() {
         for entity_id in entity_view {
             entity := &entity_backing_array[entity_id]
 
-            rect := transmute(rl.Rectangle) (transmute([4]f32) entity.rect * screen_from_world_scalar)
-            rl.DrawRectangleRec(rect, auto_cast colors[entity.color])
+            rl.DrawRectangleRec(screen_from_world_rect(entity.rect), auto_cast colors[entity.color])
         }
 
-        text := strings.clone_to_cstring(fmt.tprint(len(entity_view), "bonjour"))
-        rl.DrawText(text, 300, 300, 40, {0, 0, 0, 255})
+        text := fmt.tprint(len(entity_view), "bonjour")
+        draw_text(text, { 0.1, 0.3 }, 0.05)
     }
+}
+
+draw_text :: proc(text_string: string, position_normalised: [2]f32, font_size_normalised: f32, color: Color = .black, origin_normalised: [2]f32 = {}, rotation: f32 = 0, spacing: f32 = 1) {
+    temp := runtime.default_temp_allocator_temp_begin()
+    defer runtime.default_temp_allocator_temp_end(temp)
+
+    font := rl.GetFontDefault()
+    text := strings.clone_to_cstring(text_string, context.temp_allocator)
+    position := position_normalised * screen_from_world_scalar
+    origin := origin_normalised * screen_from_world_scalar
+    font_size := font_size_normalised * screen_from_world_scalar
+    tint := colors[color]
+    rl.DrawTextPro(font, text, position, origin, rotation, font_size, spacing, auto_cast tint)
 }
