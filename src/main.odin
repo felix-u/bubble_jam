@@ -44,12 +44,13 @@ Entity_View :: struct {
 }
 
 View_Id :: enum {
+    freelist,
+    active,
     bubbles,
     popping_bubbles,
+    bullet_bubbles,
     obstacles,
-    freelist,
     guns,
-    all,
 }
 
 entity_view_init :: proc(view: ^Entity_View) -> Entity_View {
@@ -60,10 +61,11 @@ entity_view_init :: proc(view: ^Entity_View) -> Entity_View {
 views := [View_Id]Entity_View{
     .bubbles = entity_view_init(&{}),
     .popping_bubbles = entity_view_init(&{}),
+    .bullet_bubbles = entity_view_init(&{}),
     .obstacles = entity_view_init(&{}),
     .freelist = entity_view_init(&{}),
     .guns = entity_view_init(&{}),
-    .all = entity_view_init(&{}),
+    .active = entity_view_init(&{}),
 }
 
 nb_cells_width : f32 = 64
@@ -71,14 +73,28 @@ nb_cells_height : f32 = nb_cells_width / f32(16) * f32(9)
 
 cell_size : f32 = auto_cast f32(1.0)/nb_cells_width
 
-push_entity :: proc(entity: Entity, views_to_append: ..^Entity_View) -> Entity_Index {
+push_entity :: proc(entity: Entity, views_to_append: ..View_Id) -> Entity_Index {
     index, ok := pop_safe(&views[.freelist].indices)
-    append_elem(&views[.all].indices, index)
+    append_elem(&views[.active].indices, index)
     if !ok do return Entity_Index(0)
     entity_backing_memory[index] = entity
 
-    for view in views_to_append do append_elem(&view.indices, index)
+    for id in views_to_append do append_elem(&views[id].indices, index)
     return index
+}
+
+remove_entity :: proc(entity_id: Entity_Index, views_to_remove_from: ..View_Id, free: bool = true) {
+    if free {
+        append_elem(&views[.freelist].indices, entity_id)
+        index, found := slice.linear_search(views[.active].indices[:], entity_id)
+        if found do unordered_remove(&views[.active].indices, index)
+    }
+
+    for view_id in views_to_remove_from {
+        view := views[view_id]
+        index, found := slice.linear_search(view.indices[:], entity_id)
+        if found do unordered_remove(&view.indices, index)
+    }
 }
 
 screen_width: f32 = 960
@@ -164,7 +180,7 @@ main :: proc() {
         height = gun_width,
         color = .purple,
     }
-    gun_id := push_entity(gun_initial_state, &views[.guns])
+    gun_id := push_entity(gun_initial_state, .guns)
 
     initial_bubble_radius :: 0.05
     bubble_initial_state := Entity{
@@ -173,7 +189,7 @@ main :: proc() {
         radius = initial_bubble_radius,
         color = .blue,
     }
-    push_entity(bubble_initial_state, &views[.bubbles])
+    push_entity(bubble_initial_state, .bubbles)
 
     for !rl.WindowShouldClose() {
         if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.B) {
@@ -186,6 +202,8 @@ main :: proc() {
         rl.ClearBackground(auto_cast colors[.light_grey])
 
         screen_factors_update_frame_local()
+        mouse_pos := rl.GetMousePosition()
+        world_mouse_pos := world_from_screen(mouse_pos)
 
         { // ed
             if rl.IsKeyReleased(.LEFT_SHIFT) {
@@ -216,41 +234,35 @@ main :: proc() {
                     height = snap_adjusted_obstacle_rectangle.height,
                     color = .black,
                 }
-                push_entity(obstacle_entity, &views[.obstacles])
+                push_entity(obstacle_entity, .obstacles)
                 obstacle_placement_unnormalized_rectangle = rl.Rectangle{0,0,0,0}
             }
-            else if rl.IsMouseButtonPressed(.LEFT) && rl.IsKeyDown(.LEFT_SHIFT) {
-                world_mouse_pos := world_from_screen(rl.GetMousePosition())
-                obstacle_placement_unnormalized_rectangle.x = world_mouse_pos.x
-                obstacle_placement_unnormalized_rectangle.y = world_mouse_pos.y
-            }
-            else if rl.IsMouseButtonDown(.LEFT) && obstacle_placement_unnormalized_rectangle.x != 0 && obstacle_placement_unnormalized_rectangle.y != 0 {
-                world_mouse_pos := world_from_screen(rl.GetMousePosition())
-                obstacle_placement_unnormalized_rectangle.width = world_mouse_pos.x - obstacle_placement_unnormalized_rectangle.x
-                obstacle_placement_unnormalized_rectangle.height = world_mouse_pos.y - obstacle_placement_unnormalized_rectangle.y
+            else if rl.IsMouseButtonPressed(.LEFT) {
+                using obstacle_placement_unnormalized_rectangle
+                if rl.IsKeyDown(.LEFT_SHIFT) {
+                    x = world_mouse_pos.x
+                    y = world_mouse_pos.y
+                }
+            } else if rl.IsMouseButtonDown(.LEFT) {
+                using obstacle_placement_unnormalized_rectangle
+                if x != 0 && y != 0 {
+                    width = world_mouse_pos.x - x
+                    height = world_mouse_pos.y - y
+                }
             }
             else if rl.IsMouseButtonPressed(.RIGHT) && rl.IsKeyDown(.LEFT_SHIFT) {
                 // delete any colliding obstacles
-                world_mouse_pos := world_from_screen(rl.GetMousePosition())
                 for entity_id in views[.obstacles].indices {
                     entity := entity_backing_memory[entity_id]
                     did_mouse_rectangle_intersect := rl.CheckCollisionPointRec(world_mouse_pos, entity.rect)
+
                     if did_mouse_rectangle_intersect {
-                        append_elem(&views[.freelist].indices, entity_id)
-                        index, found := slice.linear_search(views[.obstacles].indices[:], entity_id)
-                        if found {
-                            unordered_remove(&views[.obstacles].indices, index)
-                        }
-                        index, found = slice.linear_search(views[.all].indices[:], entity_id)
-                        if found {
-                            unordered_remove(&views[.all].indices, index)
-                        }
+                        remove_entity(entity_id, .obstacles)
                     }
                 }
             }
 
             if rl.IsMouseButtonPressed(.MIDDLE) {
-                // world_mouse_pos := world_from_screen(rl.GetMousePosition())
                 // goal_entity := Entity{
                 //     x = world_mouse_pos.x,
                 //     y = world_mouse_pos.y,
@@ -298,9 +310,15 @@ main :: proc() {
         gun.x = clamp(gun.x, 0, max_x(gun))
         gun.y = clamp(gun.y, 0, max_y(gun))
 
+        shoot := !rl.IsKeyDown(.LEFT_SHIFT) && rl.IsMouseButtonPressed(.LEFT)
+        if shoot {
+            target := world_mouse_pos
+            gun_center := [2]f32{ gun.x + gun.width / 2, gun.y + gun.height / 2 }
+            rl.DrawLineV(screen_from_world(gun_center), screen_from_world(target), auto_cast colors[.purple])
+        }
+
         for entity_id in views[.bubbles].indices { //update bubbles
             entity := &entity_backing_memory[entity_id]
-            world_mouse_pos := world_from_screen(rl.GetMousePosition())
             is_move_input := rl.IsMouseButtonPressed(.LEFT)
             if is_move_input {
                 is_mouse_click_intersect_with_bubble := rl.CheckCollisionPointCircle(world_mouse_pos, [2]f32{entity.x, entity.y}, entity.radius)
@@ -329,7 +347,7 @@ main :: proc() {
                         color = entity.color,
                         velocity = second_bubble_velocity_rotate_90_degrees,
                     }
-                    push_entity(new_bubble, &views[.bubbles])
+                    push_entity(new_bubble, .bubbles)
                     break
                 }
             }
@@ -366,15 +384,7 @@ main :: proc() {
             entity.pop_anim_timer -= delta_time
             entity.radius += delta_time * 0.5
             if entity.pop_anim_timer <= 0 {
-                append_elem(&views[.freelist].indices, entity_id)
-                index, found := slice.linear_search(views[.popping_bubbles].indices[:], entity_id)
-                if found {
-                    unordered_remove(&views[.popping_bubbles].indices, index)
-                }
-                index, found = slice.linear_search(views[.all].indices[:], entity_id)
-                if found {
-                    unordered_remove(&views[.all].indices, index)
-                }
+                remove_entity(entity_id, .popping_bubbles)
             }
         }
 
@@ -387,7 +397,7 @@ main :: proc() {
         }
 
 
-        for entity_id in views[.all].indices { // draw all entities
+        for entity_id in views[.active].indices { // draw all entities
             entity := entity_backing_memory[entity_id]
             rl.DrawRectangleRec(screen_from_world(entity.rect), auto_cast colors[entity.color])
         }
@@ -408,7 +418,6 @@ main :: proc() {
         { // draw debug visualizer
             // draw small circle where mouse is being held down with left click
             if rl.IsMouseButtonDown(.LEFT) {
-                world_mouse_pos := world_from_screen(rl.GetMousePosition())
                 screen_pos := screen_from_world([2]f32{ world_mouse_pos.x, world_mouse_pos.y })
                 rl.DrawCircleV(screen_pos, 20, auto_cast colors[.red])
                 rl.DrawCircleV(screen_pos, 5, auto_cast colors[.white])
