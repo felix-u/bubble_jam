@@ -11,10 +11,11 @@ breakpoint :: intrinsics.debug_trap
 
 game_name :: "bubble"
 
-Color :: enum { black, blue, light_grey }
+Color :: enum { black, blue, purple, light_grey }
 colors := [Color][4]u8{
     .black = { 0, 0, 0, 255 },
     .blue = { 0, 0, 255, 255 },
+    .purple = { 100, 0, 255, 255 },
     .light_grey = { 200, 200, 200, 255 },
 }
 
@@ -78,11 +79,13 @@ screen_height: f32 = 540
 screen_from_world_scalar_: f32
 screen_y_margin: f32
 dpi: f32 = 1
+delta_time: f32
 screen_factors_update_frame_local :: proc() {
     screen_width = cast(f32) rl.GetScreenWidth()
     screen_height = cast(f32) rl.GetScreenHeight()
-
     dpi = rl.GetWindowScaleDPI().x
+    delta_time = rl.GetFrameTime()
+
     screen_from_world_scalar_ = screen_width / dpi
 
     playable_area_screen_height := screen_width * world_height
@@ -145,6 +148,16 @@ main :: proc() {
 
     rl.SetTargetFPS(rl.GetMonitorRefreshRate(rl.GetCurrentMonitor()))
     rl.MaximizeWindow()
+
+    gun_width :: 0.03
+    gun_initial_state :: Entity{
+        x = 0.5 - gun_width / 2,
+        y = 0,
+        width = gun_width,
+        height = 0.01,
+        color = .purple,
+    }
+    gun_id := push_entity(gun_initial_state, &views[.guns])
 
     for !rl.WindowShouldClose() {
         if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.B) {
@@ -213,6 +226,16 @@ main :: proc() {
                 }
             }
         }
+
+        gun_move_speed_factor :: 0.7
+        gun_move_speed := delta_time * gun_move_speed_factor
+        gun := &entity_backing_memory[gun_id]
+        if rl.IsKeyDown(.A) || rl.IsKeyDown(.LEFT) do gun.x -= gun_move_speed
+        if rl.IsKeyDown(.D) || rl.IsKeyDown(.RIGHT) do gun.x += gun_move_speed
+        if rl.IsKeyDown(.W) || rl.IsKeyDown(.UP) do gun.y -= gun_move_speed
+        if rl.IsKeyDown(.S) || rl.IsKeyDown(.DOWN) do gun.y += gun_move_speed
+        gun.x = clamp(gun.x, 0, 1 - gun.width)
+        gun.y = clamp(gun.y, 0, world_height - gun.height)
 
         for entity_id in views[.all].indices { // draw all entities
             entity := entity_backing_memory[entity_id]
