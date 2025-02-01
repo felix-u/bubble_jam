@@ -27,6 +27,8 @@ Entity :: struct {
     velocity: [2]f32,
     accel: [2]f32,
     color: Color,
+    pop_anim_timer: f32,
+    pop_anim_time_amount: f32,
 }
 
 ENTITY_CAP :: 64
@@ -43,6 +45,7 @@ Entity_View :: struct {
 
 View_Id :: enum {
     bubbles,
+    popping_bubbles,
     obstacles,
     freelist,
     guns,
@@ -56,6 +59,7 @@ entity_view_init :: proc(view: ^Entity_View) -> Entity_View {
 
 views := [View_Id]Entity_View{
     .bubbles = entity_view_init(&{}),
+    .popping_bubbles = entity_view_init(&{}),
     .obstacles = entity_view_init(&{}),
     .freelist = entity_view_init(&{}),
     .guns = entity_view_init(&{}),
@@ -302,8 +306,56 @@ main :: proc() {
                     entity.radius *= 1.05
                 }
             }
+            is_split_input := rl.IsMouseButtonPressed(.RIGHT)
+            if is_split_input {
+                is_mouse_click_intersect_with_bubble := rl.CheckCollisionPointCircle(world_mouse_pos, [2]f32{entity.x, entity.y}, entity.radius)
+                if is_mouse_click_intersect_with_bubble  {
+                    vector_from_click_to_bubble := [2]f32{entity.x - world_mouse_pos.x, entity.y - world_mouse_pos.y}
+                    first_bubble_velocity := vector_from_click_to_bubble * 2
+                    second_bubble_velocity := [2]f32{-first_bubble_velocity.x, -first_bubble_velocity.y}
+                    entity.radius /= 2
+                    entity.velocity = first_bubble_velocity
+
+                    new_bubble := Entity{
+                        x = entity.x,
+                        y = entity.y,
+                        radius = entity.radius,
+                        color = entity.color,
+                        velocity = second_bubble_velocity,
+                    }
+                    push_entity(new_bubble, &views[.bubbles])
+                    break
+                }
+            }
             entity.x += entity.velocity.x * delta_time
             entity.y += entity.velocity.y * delta_time
+        }
+
+        for entity_id in views[.bubbles].indices { // "pop" bubbles if they touch an obstacle
+            entity := &entity_backing_memory[entity_id]
+            for obstacle_id in views[.obstacles].indices {
+                obstacle := entity_backing_memory[obstacle_id]
+                screen_bubble_pos := screen_from_world([2]f32{ entity.x, entity.y })
+                screen_bubble_radius := screen_from_world(entity.radius)
+                screen_obstacle_rectangle := screen_from_world(obstacle.rect)
+                did_bubble_collide_with_obstacle := rl.CheckCollisionCircleRec([2]f32{screen_bubble_pos.x, screen_bubble_pos.y}, screen_bubble_radius, screen_obstacle_rectangle)
+                if did_bubble_collide_with_obstacle {
+                    append_elem(&views[.freelist].indices, entity_id)
+                    index, found := slice.linear_search(views[.bubbles].indices[:], entity_id)
+                    if found {
+                        unordered_remove(&views[.bubbles].indices, index)
+                    }
+                    index, found = slice.linear_search(views[.all].indices[:], entity_id)
+                    if found {
+                        unordered_remove(&views[.all].indices, index)
+                    }
+                    index, found = slice.linear_search(views[.popping_bubbles].indices[:], entity_id)
+                    if !found {
+                        append_elem(&views[.popping_bubbles].indices, entity_id)
+                    }
+                    break
+                }
+            }
         }
 
 
@@ -318,6 +370,7 @@ main :: proc() {
             screen_radius := screen_from_world(bubble.radius)
             rl.DrawCircleV(screen_pos, screen_radius, auto_cast colors[bubble.color])
         }
+
 
         { // draw placement rectangle
             obstacle_placement_rectangle := absolute_normalized_rectangle(obstacle_placement_unnormalized_rectangle)
