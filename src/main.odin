@@ -6,6 +6,7 @@ import "core:fmt"
 import "core:strings"
 import "base:intrinsics"
 import "base:runtime"
+import "core:math"
 
 breakpoint :: intrinsics.debug_trap
 
@@ -49,6 +50,10 @@ screen_width_update_frame_local :: proc() {
 screen_from_world_rect :: #force_inline proc(rect: rl.Rectangle) -> rl.Rectangle {
     result := transmute([4]f32) rect * screen_from_world_scalar
     return transmute(rl.Rectangle) result
+}
+
+screen_from_world_position :: #force_inline proc(position: [2]f32) -> [2]f32 {
+    return position * screen_from_world_scalar
 }
 
 main :: proc() {
@@ -99,6 +104,24 @@ main :: proc() {
 
         text := fmt.tprint(len(entity_view), "bonjour")
         draw_text(text, { 0.1, 0.3 }, 0.05)
+
+        cell_size : f32 = auto_cast 1/64
+        draw_grid(cell_size)
+    }
+}
+
+draw_grid :: proc(cell_size: f32, color: Color = .black) {
+    tint := colors[color]
+    for x : f32 = 0.0; x < 1.0; x += cell_size {
+        screen_start_pos := screen_from_world_position({ x, 0 })
+        screen_end_pos := screen_from_world_position({ x, 1 })
+        rl.DrawLineEx(screen_start_pos, screen_end_pos, 1, auto_cast tint)
+
+    }
+    for y: f32 = 0.0; y < 16/9; y += cell_size {
+        screen_start_pos := screen_from_world_position({ 0, y })
+        screen_end_pos := screen_from_world_position({ 1, y })
+        rl.DrawLineEx(screen_start_pos, screen_end_pos, 1, auto_cast tint)
     }
 }
 
