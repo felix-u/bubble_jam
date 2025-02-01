@@ -2,7 +2,6 @@ package main
 
 import rl "vendor:raylib"
 import "core:slice"
-import "core:fmt"
 import "core:strings"
 import "base:intrinsics"
 import "base:runtime"
@@ -42,6 +41,7 @@ View_Id :: enum {
     bubbles,
     obstacles,
     freelist,
+    guns,
     all,
 }
 
@@ -54,6 +54,7 @@ views := [View_Id]Entity_View{
     .bubbles = entity_view_init(&{}),
     .obstacles = entity_view_init(&{}),
     .freelist = entity_view_init(&{}),
+    .guns = entity_view_init(&{}),
     .all = entity_view_init(&{}),
 }
 
@@ -62,18 +63,12 @@ nb_cells_height : f32 = nb_cells_width / f32(16) * f32(9)
 
 cell_size : f32 = auto_cast f32(1.0)/nb_cells_width
 
-// push_entity :: proc(entity: Entity) {
-//     id := len(entity_backing_array)
-//     append_elem(&entity_backing_array, entity)
-//     append_elem(&entity_view, auto_cast id)
-// }
-
 push_entity :: proc(entity: Entity, views_to_append: ..^Entity_View) -> Entity_Index {
     index, ok := pop_safe(&views[.freelist].indices)
     append_elem(&views[.all].indices, index)
     if !ok do return Entity_Index(0)
     entity_backing_memory[index] = entity
-    
+
     for view in views_to_append do append_elem(&view.indices, index)
     return index
 }
@@ -113,12 +108,16 @@ screen_from_world :: #force_inline proc(value: $T) -> T {
     return result
 }
 
-world_from_screen_position :: #force_inline proc(position: [2]f32) -> [2]f32 {
-    return position / screen_from_world_scalar_
-}
-world_from_screen_rect :: #force_inline proc(rect: rl.Rectangle) -> rl.Rectangle {
-    result := transmute([4]f32) rect / screen_from_world_scalar_
-    return transmute(rl.Rectangle) result
+world_from_screen :: #force_inline proc(value: $T) -> T {
+    when T == rl.Rectangle {
+        result := transmute(T) world_from_screen(transmute([4]f32) value)
+    } else {
+        result: T = auto_cast (auto_cast value / screen_from_world_scalar_)
+        when intrinsics.type_is_array(T) {
+            result.y -= world_from_screen(screen_y_margin)
+        }
+    }
+    return result;
 }
 
 obstacle_placement_unnormalized_rectangle := rl.Rectangle{0,0,0,0}
@@ -147,36 +146,6 @@ main :: proc() {
     rl.SetTargetFPS(rl.GetMonitorRefreshRate(rl.GetCurrentMonitor()))
     rl.MaximizeWindow()
 
-    bubble_initial_state := Entity{
-        x = 0, y = 0,
-        width = 0.01, height = 0.01,
-        color = .blue,
-    }
-    push_entity(bubble_initial_state, &views[.bubbles])
-
-    ratios := [?]f32{ 0.1, 0.25, 0.5, 0.8, 0.9, 0.99, 1 }
-    height :: 0.01
-    position: f32 = height * 2
-    for ratio in ratios {
-        entity := Entity{
-            x = 0,
-            y = position,
-            width = ratio,
-            height = height,
-            color = .blue,
-        }
-        push_entity(entity)
-
-        position += height * 2
-    }
-
-    push_entity({
-        x = 0,
-        width = 1,
-        y = world_height,
-        height = 10,
-    })
-
     for !rl.WindowShouldClose() {
         if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.B) {
             // TODO(felix): cap delta time here
@@ -199,8 +168,8 @@ main :: proc() {
                     obstacle_rectangle.height = cell_size
                 }
                 snap_adjusted_obstacle_rectangle := rl.Rectangle{
-                    x = math.round(obstacle_rectangle.x / cell_size) * cell_size,
-                    y = math.round(obstacle_rectangle.y / cell_size) * cell_size,
+                    x = math.floor(obstacle_rectangle.x / cell_size) * cell_size,
+                    y = math.floor(obstacle_rectangle.y / cell_size) * cell_size,
                     width = math.round(obstacle_rectangle.width / cell_size) * cell_size,
                     height = math.round(obstacle_rectangle.height / cell_size) * cell_size,
                 }
@@ -215,20 +184,19 @@ main :: proc() {
                 obstacle_placement_unnormalized_rectangle = rl.Rectangle{0,0,0,0}
             }
             else if rl.IsMouseButtonPressed(.LEFT) {
-                world_mouse_pos := world_from_screen_position(rl.GetMousePosition())
+                world_mouse_pos := world_from_screen(rl.GetMousePosition())
                 obstacle_placement_unnormalized_rectangle.x = world_mouse_pos.x
                 obstacle_placement_unnormalized_rectangle.y = world_mouse_pos.y
             }
             else if rl.IsMouseButtonDown(.LEFT) {
-                world_mouse_pos := world_from_screen_position(rl.GetMousePosition())
+                world_mouse_pos := world_from_screen(rl.GetMousePosition())
                 obstacle_placement_unnormalized_rectangle.width = world_mouse_pos.x - obstacle_placement_unnormalized_rectangle.x
                 obstacle_placement_unnormalized_rectangle.height = world_mouse_pos.y - obstacle_placement_unnormalized_rectangle.y
             }
         }
 
         for entity_id in views[.all].indices { // draw all entities
-            entity := &entity_backing_memory[entity_id]
-
+            entity := entity_backing_memory[entity_id]
             rl.DrawRectangleRec(screen_from_world(entity.rect), auto_cast colors[entity.color])
         }
 
@@ -236,9 +204,6 @@ main :: proc() {
             obstacle_placement_rectangle := absolute_normalized_rectangle(obstacle_placement_unnormalized_rectangle)
             rl.DrawRectangleRec(screen_from_world(obstacle_placement_rectangle), auto_cast colors[.black])
         }
-
-        text := fmt.tprint(len(entity_view), "bonjour")
-        draw_text(text, { 0.1, 0.3 }, 0.05)
 
         draw_grid(cell_size)
 
