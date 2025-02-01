@@ -192,12 +192,23 @@ main :: proc() {
         { // ed
             if rl.IsMouseButtonReleased(.LEFT) {
                 obstacle_rectangle := absolute_normalized_rectangle(obstacle_placement_unnormalized_rectangle)
-                // world_from_screen_rect(r)
+                if obstacle_rectangle.width < cell_size {
+                    obstacle_rectangle.width = cell_size
+                }
+                if obstacle_rectangle.height < cell_size {
+                    obstacle_rectangle.height = cell_size
+                }
+                snap_adjusted_obstacle_rectangle := rl.Rectangle{
+                    x = math.round(obstacle_rectangle.x / cell_size) * cell_size,
+                    y = math.round(obstacle_rectangle.y / cell_size) * cell_size,
+                    width = math.round(obstacle_rectangle.width / cell_size) * cell_size,
+                    height = math.round(obstacle_rectangle.height / cell_size) * cell_size,
+                }
                 obstacle_entity := Entity{
-                    x = obstacle_rectangle.x,
-                    y = obstacle_rectangle.y,
-                    width = obstacle_rectangle.width,
-                    height = obstacle_rectangle.height,
+                    x = snap_adjusted_obstacle_rectangle.x,
+                    y = snap_adjusted_obstacle_rectangle.y,
+                    width = snap_adjusted_obstacle_rectangle.width,
+                    height = snap_adjusted_obstacle_rectangle.height,
                     color = .black,
                 }
                 push_entity(obstacle_entity, &views[.obstacles])
