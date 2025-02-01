@@ -239,15 +239,55 @@ main :: proc() {
             }
         }
 
+        gun := &entity_backing_memory[gun_id]
         gun_move_speed_factor :: 0.7
         gun_move_speed := delta_time * gun_move_speed_factor
-        gun := &entity_backing_memory[gun_id]
-        if rl.IsKeyDown(.A) || rl.IsKeyDown(.LEFT) do gun.x -= gun_move_speed
-        if rl.IsKeyDown(.D) || rl.IsKeyDown(.RIGHT) do gun.x += gun_move_speed
-        if rl.IsKeyDown(.W) || rl.IsKeyDown(.UP) do gun.y -= gun_move_speed
-        if rl.IsKeyDown(.S) || rl.IsKeyDown(.DOWN) do gun.y += gun_move_speed
-        gun.x = clamp(gun.x, 0, 1 - gun.width)
-        gun.y = clamp(gun.y, 0, world_height - gun.height)
+
+        gun_max_x := 1 - gun.width
+        gun_max_y := world_height - gun.height
+        if gun.y == 0 || gun.y == gun_max_y {
+            if rl.IsKeyDown(.A) || rl.IsKeyDown(.LEFT) {
+                gun.x -= gun_move_speed
+                turning_corner := gun.x <= 0
+                if turning_corner {
+                    gun.x = 0
+                    if gun.y == 0 do gun.y += gun_move_speed
+                    else do gun.y -= gun_move_speed
+                }
+            }
+
+            if rl.IsKeyDown(.D) || rl.IsKeyDown(.RIGHT) {
+                gun.x += gun_move_speed
+                turning_corner := gun.x >= gun_max_x
+                if turning_corner {
+                    gun.x = gun_max_x
+                    if gun.y == 0 do gun.y += gun_move_speed
+                    else do gun.y -= gun_move_speed
+                }
+            }
+        }
+
+        if gun.x == 0 || gun.x == gun_max_x {
+            if rl.IsKeyDown(.W) || rl.IsKeyDown(.UP) {
+                gun.y -= gun_move_speed
+                turning_corner := gun.y <= 0
+                if turning_corner {
+                    gun.y = 0
+                    if gun.x == 0 do gun.x += gun_move_speed
+                    else do gun.x -= gun_move_speed
+                }
+            }
+
+            if rl.IsKeyDown(.S) || rl.IsKeyDown(.DOWN) {
+                gun.y += gun_move_speed
+                turning_corner := gun.y >= gun_max_y
+                if turning_corner {
+                    gun.y = gun_max_y
+                    if gun.x == 0 do gun.x += gun_move_speed
+                    else do gun.x -= gun_move_speed
+                }
+            }
+        }
 
         for entity_id in views[.bubbles].indices { //update bubbles
             entity := &entity_backing_memory[entity_id]
