@@ -156,12 +156,12 @@ main :: proc() {
     rl.SetTargetFPS(rl.GetMonitorRefreshRate(rl.GetCurrentMonitor()))
     rl.MaximizeWindow()
 
-    gun_width :: 0.03
+    gun_width :: 0.02
     gun_initial_state :: Entity{
         x = 0.5 - gun_width / 2,
         y = 0,
         width = gun_width,
-        height = 0.01,
+        height = gun_width,
         color = .purple,
     }
     gun_id := push_entity(gun_initial_state, &views[.guns])
@@ -251,45 +251,33 @@ main :: proc() {
         max_x :: proc(entity: ^Entity) -> f32 { return 1 - entity.width }
         max_y :: proc(entity: ^Entity) -> f32 { return world_height - entity.height }
 
-        gun_was_vertical := gun.x == 0 || gun.x == max_x(gun)
-        gun_on_right_edge: bool
-        gun_on_bottom_edge: bool
-
-        if gun.y == 0 || gun.y == max_y(gun) {
+        gun_on_horizontal_edge := gun.y == 0 || gun.y == max_y(gun)
+        if gun_on_horizontal_edge {
             if rl.IsKeyDown(.A) || rl.IsKeyDown(.LEFT) do gun.x -= gun_move_speed
             if rl.IsKeyDown(.D) || rl.IsKeyDown(.RIGHT) do gun.x += gun_move_speed
 
             turning_corner := gun.x <= 0 || max_x(gun) <= gun.x
             if turning_corner {
-                if gun.x > 0.5 do gun_on_right_edge = true
-
-                gun.x = clamp(gun.x, 0, max_x(gun))
                 if gun.y == 0 do gun.y += gun_move_speed
                 else do gun.y -= gun_move_speed
             }
         }
 
-        if gun.x == 0 || gun.x == max_x(gun) {
+        gun_on_vertical_edge := !gun_on_horizontal_edge
+        gun_on_vertical_edge &&= gun.x == 0 || gun.x == max_x(gun)
+        if gun_on_vertical_edge {
             if rl.IsKeyDown(.W) || rl.IsKeyDown(.UP) do gun.y -= gun_move_speed
             if rl.IsKeyDown(.S) || rl.IsKeyDown(.DOWN) do gun.y += gun_move_speed
 
             turning_corner := gun.y <= 0 || max_y(gun) <= gun.y
             if turning_corner {
-                if gun.y > 0.5 do gun_on_bottom_edge = true
-
-                gun.y = clamp(gun.y, 0, max_y(gun))
                 if gun.x == 0 do gun.x += gun_move_speed
                 else do gun.x -= gun_move_speed
             }
         }
 
-        gun_is_now_vertical := gun.x == 0 || gun.x == max_x(gun)
-        if gun_was_vertical != gun_is_now_vertical {
-            gun.width, gun.height = gun.height, gun.width
-        }
-
-        if gun_on_right_edge do gun.x = max_x(gun)
-        else if gun_on_bottom_edge do gun.y = max_y(gun)
+        gun.x = clamp(gun.x, 0, max_x(gun))
+        gun.y = clamp(gun.y, 0, max_y(gun))
 
         for entity_id in views[.bubbles].indices { //update bubbles
             entity := &entity_backing_memory[entity_id]
