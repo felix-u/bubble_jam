@@ -235,7 +235,7 @@ remove_entity :: proc(entity_id: Entity_Index, view_ids: ..View_Id, free: bool =
 }
 
 screen_size := [2]f32{ 960, 540 }
-screen_from_world_scalar_: f32
+screen_from_world_scalar: f32
 screen_margin: [2]f32
 dpi: f32 = 1
 delta_time: f32
@@ -250,24 +250,28 @@ screen_factors_update_frame_local :: proc() {
     screen_taller_than_world = height_over_width > world_height
     screen_wider_than_world = !screen_taller_than_world
 
-    screen_from_world_scalar_ = screen_size.x / dpi
+    if screen_taller_than_world {
+        screen_from_world_scalar = screen_size.x / dpi
+        screen_margin.x = 0
 
-    playable_area_screen_height := screen_size.x * world_height
-    overheight := screen_size.y - playable_area_screen_height
-
-    if overheight <= 0 {
+        playable_area_screen_height := screen_size.x * world_height
+        overheight := screen_size.y - playable_area_screen_height
+        screen_margin.y = overheight / 2 / dpi
+    } else {
+        screen_from_world_scalar = screen_size.x / dpi
         screen_margin.y = 0
-        return
-    }
 
-    screen_margin.y = overheight / 2 / dpi
+        playable_area_screen_width := screen_size.y / world_height
+        overwidth := screen_size.x - playable_area_screen_width
+        screen_margin.x = overwidth / 2 / dpi
+    }
 }
 
 screen_from_world :: #force_inline proc(value: $T) -> T {
     when T == rl.Rectangle {
         result := transmute(T) screen_from_world(transmute([4]f32) value)
     } else {
-        result: T = auto_cast (auto_cast value * screen_from_world_scalar_)
+        result: T = auto_cast (auto_cast value * screen_from_world_scalar)
         when intrinsics.type_is_array(T) {
             result.x += screen_margin.x
             result.y += screen_margin.y
@@ -280,7 +284,7 @@ world_from_screen :: #force_inline proc(value: $T) -> T {
     when T == rl.Rectangle {
         result := transmute(T) world_from_screen(transmute([4]f32) value)
     } else {
-        result: T = auto_cast (auto_cast value / screen_from_world_scalar_)
+        result: T = auto_cast (auto_cast value / screen_from_world_scalar)
         when intrinsics.type_is_array(T) {
             result.y -= world_from_screen(screen_margin.y)
         }
@@ -539,7 +543,7 @@ main :: proc() {
             if rl.IsKeyPressed(.F9) { // reset current level
                 reset_entities_from_level()
             }
-            
+
 
             { // level switching
                 input_level_one_requested := rl.IsKeyPressed(.ONE)
@@ -807,7 +811,7 @@ main :: proc() {
 
         draw_grid(cell_size)
 
-        boundary_color := rl.Color{ 255, 0, 0, 255 }
+        boundary_color := rl.Color{ 255, 0, 0, 150 }
         thickness_world :: 0.01
         thickness := screen_from_world(cast(f32) thickness_world)
 
@@ -815,9 +819,19 @@ main :: proc() {
         top_boundary_end := screen_from_world([2]f32{ 1, -thickness_world })
         rl.DrawLineEx(top_boundary_start, top_boundary_end, thickness * 2, boundary_color)
 
+        left_boundary_start := screen_from_world([2]f32{ -thickness_world, 0 })
+        left_boundary_end := screen_from_world([2]f32{ -thickness_world, world_height })
+        rl.DrawLineEx(left_boundary_start, left_boundary_end, thickness * 2, boundary_color)
+
+        boundary_color.g = 100
+
         bottom_boundary_start := screen_from_world([2]f32{ 0, world_height + thickness_world })
         bottom_boundary_end := screen_from_world([2]f32{ 1, world_height + thickness_world })
         rl.DrawLineEx(bottom_boundary_start, bottom_boundary_end, thickness * 2, boundary_color)
+
+        right_boundary_start := screen_from_world([2]f32{ 1 + thickness_world, 0 })
+        right_boundary_end := screen_from_world([2]f32{ 1 + thickness_world, world_height })
+        rl.DrawLineEx(right_boundary_start, right_boundary_end, thickness * 2, boundary_color)
     }
 }
 
