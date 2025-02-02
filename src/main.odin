@@ -62,11 +62,20 @@ View_Id :: enum {
 Level :: struct {
     name: cstring,
     entities: map[View_Id][dynamic]Entity,
+    gun_initial_position: [2]f32,
+
     gun_id: Entity_Index,
 }
 
 current_level_index := 0
 NUM_LEVELS :: 2
+
+gun_width :: 0.02
+gun_initial_state :: Entity{
+    // NOTE(felix): position is set per-level
+    width = gun_width, height = gun_width,
+    color = .purple,
+}
 
 levels_init :: proc() -> [NUM_LEVELS]Level {
     levels := [NUM_LEVELS]Level{
@@ -107,6 +116,7 @@ levels_init :: proc() -> [NUM_LEVELS]Level {
                     }
                 },
             },
+            gun_initial_position = { 0.4, 0 },
         },
         {
             name = "level 2",
@@ -138,6 +148,7 @@ levels_init :: proc() -> [NUM_LEVELS]Level {
                     },
                 },
             },
+            gun_initial_position = { 0, world_height * 0.7 },
         },
 
     }
@@ -160,21 +171,19 @@ reset_entities_from_level :: proc() {
 
     for i in 1 ..< ENTITY_CAP do append_elem(&views[.freelist].indices, cast(Entity_Index) i)
 
-    for view_id, entities in levels[current_level_index].entities {
+    level := &levels[current_level_index]
+
+    for view_id, entities in level.entities {
         for entity in entities {
             push_entity(entity, view_id)
         }
     }
 
-    gun_width :: 0.02
-    gun_initial_state :: Entity{
-        x = 0.5 - gun_width / 2,
-        y = 0,
-        width = gun_width,
-        height = gun_width,
-        color = .purple,
-    }
-    levels[current_level_index].gun_id = push_entity(gun_initial_state, .guns)
+    gun := gun_initial_state
+    gun.x = level.gun_initial_position.x
+    gun.y = level.gun_initial_position.y
+
+    level.gun_id = push_entity(gun, .guns)
 }
 
 Entity_Edit_Mode :: enum {
