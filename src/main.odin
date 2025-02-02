@@ -365,6 +365,9 @@ main :: proc() {
             // TODO(felix): cap delta time here
             breakpoint()
         }
+        if rl.IsKeyPressed(.F11) {
+            rl.ToggleFullscreen() 
+        }
 
         rl.BeginDrawing()
         defer rl.EndDrawing()
