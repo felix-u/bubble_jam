@@ -632,7 +632,10 @@ main :: proc() {
             for splitter_id in views[.splitters].indices {
                 splitter := &entity_backing_memory[splitter_id]
 
-                intersect := rl.CheckCollisionCircleRec({ x, y }, width, splitter.rect)
+                screen_bubble_pos := screen_from_world([2]f32{ entity.x, entity.y })
+                screen_bubble_radius := screen_from_world(entity.width)
+                screen_splitter_rectangle := screen_from_world(splitter.rect)
+                intersect := rl.CheckCollisionCircleRec(screen_bubble_pos, screen_bubble_radius, screen_splitter_rectangle)
 
                 if !intersect do continue
 
@@ -660,8 +663,10 @@ main :: proc() {
 
             for grower_id in views[.growers].indices {
                 grower := &entity_backing_memory[grower_id]
-
-                intersect := rl.CheckCollisionCircleRec({ x, y }, width, grower.rect)
+                screen_bubble_pos := screen_from_world([2]f32{ entity.x, entity.y })
+                screen_bubble_radius := screen_from_world(entity.width)
+                screen_grower_rectangle := screen_from_world(grower.rect)
+                intersect := rl.CheckCollisionCircleRec(screen_bubble_pos, screen_bubble_radius, screen_grower_rectangle)
 
                 if !intersect do continue
 
