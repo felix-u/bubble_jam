@@ -305,6 +305,8 @@ create_pop_ripple_from_circle :: proc(pos: [2]f32, radius: f32, color: Color) {
     new_popping_bubble.pop_anim_time_amount = 0.19
     new_popping_bubble.pop_anim_timer = new_popping_bubble.pop_anim_time_amount
     push_entity(new_popping_bubble, .popping_bubbles)
+
+    reset_and_play_sfx(pop_sfx)
 }
 
 editor_handle_input_for_placement_rectangle_and_rectangular_entity_creation  :: proc(view_id: View_Id, world_mouse_pos: [2]f32, color_for_creation: Color = .black)
@@ -379,6 +381,18 @@ begin_transition_to_level :: proc(new_level_index: int) {
     text = "again!" if retrying_same_level else levels[new_level_index].name
 }
 
+pop_sfx : rl.Sound
+grow_sfx : rl.Sound
+end_goal_hit_sfx : rl.Sound
+switch_sides_sfx : rl.Sound
+
+
+
+reset_and_play_sfx :: proc(sfx: rl.Sound) {
+    rl.StopSound(sfx)
+    rl.PlaySound(sfx)
+}
+
 main :: proc() {
     when ODIN_DEBUG { 	// memory leak tracking
 		track: mem.Tracking_Allocator
@@ -434,6 +448,22 @@ main :: proc() {
 
     rl.SetTraceLogLevel(.WARNING)
     rl.SetConfigFlags({.WINDOW_RESIZABLE, .WINDOW_HIGHDPI})
+
+    rl.InitAudioDevice()
+    defer rl.CloseAudioDevice()
+
+    pop_sfx = rl.LoadSound("pop-sfx.wav")
+    grow_sfx = rl.LoadSound("grow-sfx.wav")
+    end_goal_hit_sfx = rl.LoadSound("end-goal-hit-sfx.wav")
+    switch_sides_sfx = rl.LoadSound("switch-sides-sfx.wav")
+    rl.SetSoundVolume(switch_sides_sfx, 0.6)
+    rl.SetSoundPitch(switch_sides_sfx, 0.8)
+    rl.SetSoundVolume(grow_sfx, 0.6)
+    rl.SetSoundPitch(grow_sfx, 1.8)
+    rl.SetSoundVolume(end_goal_hit_sfx, 0.5)
+    rl.SetSoundPitch(end_goal_hit_sfx, 1.8)
+
+    rl.SetSoundVolume(pop_sfx, 1)
 
     rl.InitWindow(auto_cast screen_size.x, auto_cast screen_size.y, game_name)
     defer rl.CloseWindow()
@@ -609,6 +639,8 @@ main :: proc() {
                 else if gun.x == max_x(gun) do gun.x = 0
             }
 
+            reset_and_play_sfx(switch_sides_sfx)
+
             create_pop_ripple_from_circle([2]f32{gun.x, gun.y}, gun.width, gun.color)
         }
 
@@ -703,6 +735,8 @@ main :: proc() {
                 entity.velocity = vector * velocity_factor
                 entity.width *= 1.05
 
+                reset_and_play_sfx(grow_sfx)
+
                 remove_entity(grower_id, .growers)
             }
 
@@ -769,6 +803,8 @@ main :: proc() {
 
                     end_goal_entity.color = .gold
                     append_elem(&views[.end_goals_completed].indices, end_goal_index)
+
+                    reset_and_play_sfx(end_goal_hit_sfx)
                     break
                 }
             }
@@ -796,6 +832,10 @@ main :: proc() {
                 }
             }
         }
+
+
+        draw_grid(cell_size)
+
 
         for entity_id in views[.popping_bubbles].indices { // draw popping bubbles
             // will be drawn as circle lines instead of solid
@@ -863,7 +903,6 @@ main :: proc() {
             }
         }
 
-        draw_grid(cell_size)
 
         level_transition_animation: {
             using level_transition_state
@@ -936,7 +975,7 @@ main :: proc() {
 }
 
 draw_grid :: proc(cell_size: f32, color: Color = .black) {
-    tint := colors[color]
+    tint := rl.Color{0,0,0,10}
     for x : f32 = 0.0; x < 1.0; x += cell_size {
         screen_start_pos := screen_from_world([2]f32{ x, 0 })
         screen_end_pos := screen_from_world([2]f32{ x, 1 })
