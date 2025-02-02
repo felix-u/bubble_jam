@@ -2,9 +2,7 @@ package main
 
 import rl "vendor:raylib"
 import "core:slice"
-import "core:strings"
 import "base:intrinsics"
-import "base:runtime"
 import "core:math"
 import "core:mem"
 import la "core:math/linalg"
@@ -180,7 +178,7 @@ entity_edit_mode_keypress_map := [Entity_Edit_Mode]rl.KeyboardKey {
     .end_goal = .G,
     .none     = .N,
 }
-entity_edit_mode_name_map := [Entity_Edit_Mode]string {
+entity_edit_mode_name_map := [Entity_Edit_Mode]cstring {
     .bubble   = "edit bubble mode",
     .obstacle = "edit obstacle mode",
     .end_goal = "edit end goal mode",
@@ -236,29 +234,33 @@ remove_entity :: proc(entity_id: Entity_Index, view_ids: ..View_Id, free: bool =
     }
 }
 
-screen_width: f32 = 960
-screen_height: f32 = 540
+screen_size := [2]f32{ 960, 540 }
 screen_from_world_scalar_: f32
-screen_y_margin: f32
+screen_margin: [2]f32
 dpi: f32 = 1
 delta_time: f32
+screen_taller_than_world, screen_wider_than_world: bool
 screen_factors_update_frame_local :: proc() {
-    screen_width = cast(f32) rl.GetScreenWidth()
-    screen_height = cast(f32) rl.GetScreenHeight()
+    screen_size.x = cast(f32) rl.GetScreenWidth()
+    screen_size.y = cast(f32) rl.GetScreenHeight()
     dpi = rl.GetWindowScaleDPI().x
     delta_time = rl.GetFrameTime()
 
-    screen_from_world_scalar_ = screen_width / dpi
+    height_over_width := screen_size.y / screen_size.x
+    screen_taller_than_world = height_over_width > world_height
+    screen_wider_than_world = !screen_taller_than_world
 
-    playable_area_screen_height := screen_width * world_height
-    overheight := screen_height - playable_area_screen_height
+    screen_from_world_scalar_ = screen_size.x / dpi
+
+    playable_area_screen_height := screen_size.x * world_height
+    overheight := screen_size.y - playable_area_screen_height
 
     if overheight <= 0 {
-        screen_y_margin = 0
+        screen_margin.y = 0
         return
     }
 
-    screen_y_margin = overheight / 2 / dpi
+    screen_margin.y = overheight / 2 / dpi
 }
 
 screen_from_world :: #force_inline proc(value: $T) -> T {
@@ -267,8 +269,9 @@ screen_from_world :: #force_inline proc(value: $T) -> T {
     } else {
         result: T = auto_cast (auto_cast value * screen_from_world_scalar_)
         when intrinsics.type_is_array(T) {
-            result.y += screen_y_margin
-        }
+            result.x += screen_margin.x
+            result.y += screen_margin.y
+        } else do result += screen_margin.x
     }
     return result
 }
@@ -279,7 +282,7 @@ world_from_screen :: #force_inline proc(value: $T) -> T {
     } else {
         result: T = auto_cast (auto_cast value / screen_from_world_scalar_)
         when intrinsics.type_is_array(T) {
-            result.y -= world_from_screen(screen_y_margin)
+            result.y -= world_from_screen(screen_margin.y)
         }
     }
     return result;
@@ -366,7 +369,7 @@ main :: proc() {
     rl.SetTraceLogLevel(.WARNING)
     rl.SetConfigFlags({.WINDOW_RESIZABLE, .WINDOW_HIGHDPI})
 
-    rl.InitWindow(auto_cast screen_width, auto_cast screen_height, game_name)
+    rl.InitWindow(auto_cast screen_size.x, auto_cast screen_size.y, game_name)
     defer rl.CloseWindow()
 
     target_fps := rl.GetMonitorRefreshRate(rl.GetCurrentMonitor())
@@ -398,7 +401,7 @@ main :: proc() {
             breakpoint()
         }
         if rl.IsKeyPressed(.F11) {
-            rl.ToggleFullscreen() 
+            rl.ToggleFullscreen()
         }
 
         rl.BeginDrawing()
@@ -458,7 +461,7 @@ main :: proc() {
                     using obstacle_placement_unnormalized_rectangle
                     x = world_mouse_pos.x
                     y = world_mouse_pos.y
-                    
+
                 } else if rl.IsMouseButtonDown(.LEFT) {
                     using obstacle_placement_unnormalized_rectangle
                     if x != 0 && y != 0 {
@@ -471,7 +474,7 @@ main :: proc() {
                     for entity_id in views[.obstacles].indices {
                         entity := entity_backing_memory[entity_id]
                         did_mouse_rectangle_intersect := rl.CheckCollisionPointRec(world_mouse_pos, entity.rect)
-    
+
                         if did_mouse_rectangle_intersect {
                             remove_entity(entity_id, .obstacles)
                         }
@@ -487,7 +490,7 @@ main :: proc() {
                         width = cell_size,
                         height = cell_size,
                     }
-                    
+
                     snap_adjusted_end_goal_rectangle := rl.Rectangle{
                         x = math.floor(end_goal_rectangle.x / cell_size) * cell_size,
                         y = math.floor(end_goal_rectangle.y / cell_size) * cell_size,
@@ -504,7 +507,7 @@ main :: proc() {
             case .none: {}
             }
 
-            
+
 
             { // level switching
                 input_level_one_requested := rl.IsKeyPressed(.ONE)
@@ -623,7 +626,7 @@ main :: proc() {
                 grower := &entity_backing_memory[grower_id]
 
                 intersect := rl.CheckCollisionCircleRec({ x, y }, width, grower.rect)
-                
+
                 if intersect {
                     vector := la.normalize(grower.velocity)
                     velocity_factor :: 0.1
@@ -797,12 +800,8 @@ draw_grid :: proc(cell_size: f32, color: Color = .black) {
     }
 }
 
-draw_text :: proc(text_string: string, position_world: [2]f32, font_size_world: f32, color: Color = .black, rotation: f32 = 0, spacing: f32 = 1) {
-    temp := runtime.default_temp_allocator_temp_begin()
-    defer runtime.default_temp_allocator_temp_end(temp)
-
+draw_text :: proc(text: cstring, position_world: [2]f32, font_size_world: f32, color: Color = .black, rotation: f32 = 0, spacing: f32 = 1) {
     font := rl.GetFontDefault()
-    text := strings.clone_to_cstring(text_string, context.temp_allocator)
     position := screen_from_world(position_world)
     origin := [2]f32{}
     font_size := screen_from_world(font_size_world)
