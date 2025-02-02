@@ -2,7 +2,7 @@
 	{
 		"name": "level 1",
 		"gun_initial_position": [
-			0.40000001,
+			0.17833194,
 			0.00000000
 		],
 		"gun_id": 55,
@@ -168,8 +168,8 @@
 	{
 		"name": "level 2",
 		"gun_initial_position": [
-			0.00000000,
-			0.39375001
+			0.71166956,
+			0.54250002
 		],
 		"gun_id": 60,
 		"obstacles": [

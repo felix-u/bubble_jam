@@ -113,7 +113,7 @@ read_levels_from_json_file :: proc() {
         return
     }
 }
-  
+
 
 
 reset_entities_from_level :: proc() {
@@ -517,21 +517,26 @@ main :: proc() {
             }
 
             if rl.IsKeyPressed(.F8) { // save to levels
-                non_zero_resize(&levels[current_level_index].bubbles, 0)
-                non_zero_resize(&levels[current_level_index].obstacles, 0)
-                non_zero_resize(&levels[current_level_index].end_goals, 0)
-                
+                level := &levels[current_level_index]
+
+                non_zero_resize(&level.bubbles, 0)
+                non_zero_resize(&level.obstacles, 0)
+                non_zero_resize(&level.end_goals, 0)
+
+                gun_rect := entity_backing_memory[level.gun_id].rect
+                level.gun_initial_position = { gun_rect.x, gun_rect.y }
+
                 for entity_id in views[.bubbles].indices {
                     entity := entity_backing_memory[entity_id]
-                    append_elem(&levels[current_level_index].bubbles, entity)
+                    append_elem(&level.bubbles, entity)
                 }
                 for entity_id in views[.obstacles].indices {
                     entity := entity_backing_memory[entity_id]
-                    append_elem(&levels[current_level_index].obstacles, entity)
+                    append_elem(&level.obstacles, entity)
                 }
                 for entity_id in views[.end_goals].indices {
                     entity := entity_backing_memory[entity_id]
-                    append_elem(&levels[current_level_index].end_goals, entity)
+                    append_elem(&level.end_goals, entity)
                 }
                 save_screen_flash_timer = save_screen_flash_time_amount
 
