@@ -5,6 +5,7 @@
 watch: "locals"
 watch: "globals"
 watch: "screen_height"
+watch: "views"
 
 /// targets ///////////////////////////////////////////////////////////////////
 

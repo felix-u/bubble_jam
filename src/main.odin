@@ -374,14 +374,20 @@ main :: proc() {
             entity := &entity_backing_memory[entity_id]
             for obstacle_id in views[.obstacles].indices {
                 obstacle := entity_backing_memory[obstacle_id]
+
                 screen_bubble_pos := screen_from_world([2]f32{ entity.x, entity.y })
                 screen_bubble_radius := screen_from_world(entity.radius)
                 screen_obstacle_rectangle := screen_from_world(obstacle.rect)
+
                 did_bubble_collide_with_obstacle := rl.CheckCollisionCircleRec([2]f32{screen_bubble_pos.x, screen_bubble_pos.y}, screen_bubble_radius, screen_obstacle_rectangle)
                 if did_bubble_collide_with_obstacle {
-                    remove_entity(entity_id, .bubbles, free = false)
+                    // NOTE(felix): I tried using remove_entity() here but got weird behaviour which could have been a miscompilation
+                    index, found := slice.linear_search(views[.bubbles].indices[:], entity_id)
+                    if found do unordered_remove(&views[.bubbles].indices, index)
+
                     entity.pop_anim_time_amount = 0.25
                     entity.pop_anim_timer = entity.pop_anim_time_amount
+
                     append_elem(&views[.popping_bubbles].indices, entity_id)
                     break
                 }
