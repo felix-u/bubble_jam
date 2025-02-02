@@ -144,12 +144,12 @@ reset_entities_from_level :: proc() {
 }
 
 Entity_Edit_Mode :: enum {
+    none,
     bubble,
     obstacle,
     end_goal,
-    none,
 }
-current_entity_edit_mode : Entity_Edit_Mode = .bubble
+current_entity_edit_mode : Entity_Edit_Mode
 entity_edit_mode_keypress_map := [Entity_Edit_Mode]rl.KeyboardKey {
     .bubble   = .B,
     .obstacle = .O,
@@ -643,8 +643,8 @@ main :: proc() {
 
         snap_to_edge_center := rl.IsKeyPressed(.C) && !rl.IsMouseButtonDown(.LEFT)
         if snap_to_edge_center {
-            if gun_on_horizontal_edge do gun.x = 0.5
-            else do gun.y = world_height / 2
+            if gun_on_horizontal_edge do gun.x = 0.5 - gun.width / 2
+            else do gun.y = (world_height - gun.height) / 2
         }
 
         gun.x = clamp(gun.x, 0, max_x(gun))
@@ -654,7 +654,6 @@ main :: proc() {
         shoot_splitter := !rl.IsKeyDown(.LEFT_SHIFT) && rl.IsMouseButtonPressed(.RIGHT) && current_entity_edit_mode == .none
         shoot_bullet := shoot_grower || shoot_splitter
         if shoot_bullet {
-            target := world_mouse_pos
             gun_center := [2]f32{ gun.x + gun.width / 2, gun.y + gun.height / 2 }
 
             bullet_radius :: 0.01
@@ -665,6 +664,9 @@ main :: proc() {
                 height = bullet_radius * 2,
                 color = .blue if shoot_grower else .red,
             }
+
+            target := world_mouse_pos - [2]f32{ bullet.width, bullet.height } / 2
+
             bullet.velocity = { target.x - bullet.x, target.y - bullet.y }
             bullet.velocity = la.normalize(bullet.velocity)
             bullet_speed :: 0.5
