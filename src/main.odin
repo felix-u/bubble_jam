@@ -6,19 +6,23 @@ import "core:strings"
 import "base:intrinsics"
 import "base:runtime"
 import "core:math"
+import "core:mem"
 import la "core:math/linalg"
+import "core:fmt"
 
 breakpoint :: intrinsics.debug_trap
 
 game_name :: "bubble"
 
-Color :: enum { black, blue, purple, red, white, light_grey }
+Color :: enum { black, blue, purple, red, white, light_grey, green, gold }
 colors := [Color][4]u8{
     .black = { 0, 0, 0, 255 },
     .blue = { 0, 0, 255, 255 },
     .purple = { 100, 0, 255, 255 },
     .red = { 255, 0, 0, 255 },
     .light_grey = { 200, 200, 200, 255 },
+    .green = { 0, 255, 0, 255 },
+    .gold = { 255, 215, 0, 255 },
     .white = { 255, 255, 255, 255 },
 }
 
@@ -52,6 +56,113 @@ View_Id :: enum {
     bullet_bubbles,
     obstacles,
     guns,
+    end_goals,
+    end_goals_completed,
+}
+
+Level :: struct {
+    name: string,
+    entities: map[View_Id][dynamic]Entity
+}
+
+curr_level_index := 0
+NUM_LEVELS :: 2
+
+levels_init :: proc() -> [NUM_LEVELS]Level {
+    levels := [NUM_LEVELS]Level{
+        {
+            name = "level 1",
+            entities = map[View_Id][dynamic]Entity{
+                .bubbles = [dynamic]Entity{
+                    Entity{
+                        x = 0.5,
+                        y = 0.1,
+                        radius = 0.05,
+                        color = .red,
+                    },
+                },
+                .obstacles = [dynamic]Entity{
+                    Entity{
+                        x = 0.3,
+                        y = 0.3,
+                        width = 0.1,
+                        height = 0.1,
+                        color = .black,
+                    },
+                },
+                .end_goals = [dynamic]Entity{
+                    Entity{
+                        x = 0.7,
+                        y = 0.1,
+                        width = 0.1,
+                        height = 0.1,
+                        color = .green,
+                    },
+                    Entity{
+                        x = 0.7,
+                        y = 0.3,
+                        width = 0.1,
+                        height = 0.1,
+                        color = .green,
+                    }
+                },
+            },
+        },
+        {
+            name = "level 2",
+            entities = map[View_Id][dynamic]Entity{
+                .bubbles = [dynamic]Entity{
+                    Entity{
+                        x = 0.2,
+                        y = 0.3,
+                        radius = 0.05,
+                        color = .red,
+                    },
+                },
+                .obstacles = [dynamic]Entity{
+                    Entity{
+                        x = 0.3,
+                        y = 0.3,
+                        width = 0.1,
+                        height = 0.1,
+                        color = .black,
+                    },
+                },
+                .end_goals = [dynamic]Entity{
+                    Entity{
+                        x = 0.7,
+                        y = 0.1,
+                        width = 0.1,
+                        height = 0.1,
+                        color = .green,
+                    },
+                },
+            },
+        },
+        
+    }
+    return levels
+}
+levels := levels_init()
+
+
+
+reset_entities_from_level :: proc() {
+    non_zero_resize(&views[.bubbles].indices, 0)
+    non_zero_resize(&views[.obstacles].indices, 0)
+    non_zero_resize(&views[.popping_bubbles].indices, 0)
+    non_zero_resize(&views[.bullet_bubbles].indices, 0)
+    non_zero_resize(&views[.guns].indices, 0)
+    non_zero_resize(&views[.active].indices, 0)
+    non_zero_resize(&views[.freelist].indices, 0)
+
+    for i in 1 ..< ENTITY_CAP do append_elem(&views[.freelist].indices, cast(Entity_Index) i)
+
+    for view_id, entities in levels[curr_level_index].entities {
+        for entity in entities {
+            push_entity(entity, view_id)
+        }
+    }
 }
 
 entity_view_init :: proc(view: ^Entity_View) -> Entity_View {
@@ -65,6 +176,8 @@ views := [View_Id]Entity_View{
     .bullet_bubbles = entity_view_init(&{}),
     .obstacles = entity_view_init(&{}),
     .freelist = entity_view_init(&{}),
+    .end_goals = entity_view_init(&{}),
+    .end_goals_completed = entity_view_init(&{}),
     .guns = entity_view_init(&{}),
     .active = entity_view_init(&{}),
 }
@@ -161,6 +274,55 @@ absolute_normalized_rectangle :: proc(r: rl.Rectangle) -> rl.Rectangle {
 world_height: f32 : 9.0 / 16.0
 
 main :: proc() {
+    when ODIN_DEBUG { 	// memory leak tracking
+		track: mem.Tracking_Allocator
+		mem.tracking_allocator_init(&track, context.allocator)
+		temp_track: mem.Tracking_Allocator
+		mem.tracking_allocator_init(&temp_track, context.temp_allocator)
+		context.allocator = mem.tracking_allocator(&track)
+		context.temp_allocator = mem.tracking_allocator(&temp_track)
+
+		defer {
+			if len(track.allocation_map) > 0 {
+				for _, entry in track.allocation_map {
+					fmt.eprintf(
+						"%v leaked %v bytes\n",
+						entry.location,
+						entry.size,
+					)
+				}
+			}
+			if len(track.bad_free_array) > 0 {
+				for entry in track.bad_free_array {
+					fmt.eprintf(
+						"%v bad free at %v\n",
+						entry.location,
+						entry.memory,
+					)
+				}
+			}
+			if len(temp_track.allocation_map) > 0 {
+				for _, entry in temp_track.allocation_map {
+					fmt.eprintf(
+						"temp_allocator %v leaked %v bytes\n",
+						entry.location,
+						entry.size,
+					)
+				}
+			}
+			if len(temp_track.bad_free_array) > 0 {
+				for entry in temp_track.bad_free_array {
+					fmt.eprintf(
+						"temp_allocator %v bad free at %v\n",
+						entry.location,
+						entry.memory,
+					)
+				}
+			}
+			mem.tracking_allocator_destroy(&track)
+			mem.tracking_allocator_destroy(&temp_track)
+		}
+	}
 
     for i in 1 ..< ENTITY_CAP do append_elem(&views[.freelist].indices, cast(Entity_Index) i)
 
@@ -269,6 +431,20 @@ main :: proc() {
                 bubble_to_create.y = world_mouse_pos.y
                 push_entity(bubble_to_create, .bubbles)
             }
+
+            { // level switching
+                input_level_one_requested := rl.IsKeyPressed(.ONE)
+                input_level_two_requested := rl.IsKeyPressed(.TWO)
+
+                if input_level_one_requested {
+                    curr_level_index = 0
+                    reset_entities_from_level()
+                }
+                if input_level_two_requested {
+                    curr_level_index = 1
+                    reset_entities_from_level()
+                }
+            }
         }
 
         gun := &entity_backing_memory[gun_id]
@@ -364,7 +540,7 @@ main :: proc() {
             }
         }
 
-        for entity_id in views[.active].indices {
+        for entity_id in views[.active].indices { // move
             entity := &entity_backing_memory[entity_id]
             entity.x += entity.velocity.x * delta_time
             entity.y += entity.velocity.y * delta_time
@@ -422,6 +598,10 @@ main :: proc() {
             screen_pos := screen_from_world([2]f32{ bubble.x, bubble.y })
             screen_radius := screen_from_world(bubble.radius)
             rl.DrawCircleV(screen_pos, screen_radius, auto_cast colors[bubble.color])
+        }
+
+        { // draw end goals
+
         }
 
 
