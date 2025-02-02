@@ -311,6 +311,7 @@ create_pop_ripple_from_circle :: proc(pos: [2]f32, radius: f32, color: Color) {
 
 
 level_transition_state: struct {
+    active: bool,
     using non_text_related: struct {
         old_level_index, new_level_index: int,
         curtain: rl.Rectangle,
@@ -325,14 +326,20 @@ level_transition_state: struct {
 
 begin_transition_to_level :: proc(new_level_index: int) {
     assert(new_level_index < NUM_LEVELS)
+
     level_transition_state = {
+        active = true,
         old_level_index = current_level_index,
         new_level_index = new_level_index,
         curtain = { x = -1, width = 1, height = world_height },
-        curtain_color = .blue,
         render_curtain = true,
-        text = levels[new_level_index].name,
     }
+
+    using level_transition_state
+    retrying_same_level := new_level_index == current_level_index
+
+    curtain_color = .red if retrying_same_level else .blue
+    text = "again!" if retrying_same_level else levels[new_level_index].name
 }
 
 main :: proc() {
@@ -831,23 +838,16 @@ main :: proc() {
         }
 
         won := len(views[.end_goals].indices) == 0
-        // TODO(felix): level_transition_state.active field
-        level_transition_state_active: bool
-        {
-            using level_transition_state
-            level_transition_state_active = old_level_index != new_level_index
-        }
-        won &&= !level_transition_state_active
+        won &&= !level_transition_state.active
         if won {
             new_level_index := (current_level_index + 1) % NUM_LEVELS
             begin_transition_to_level(new_level_index)
         }
 
         lost := !won && len(views[.bubbles].indices) == 0
-        lost &&= !level_transition_state_active
+        lost &&= !level_transition_state.active
         if lost {
-            // TODO(felix): use transition system
-            draw_text("Game Over", [2]f32{0.2, 0.2}, 0.1, .black)
+            begin_transition_to_level(current_level_index)
         }
 
         { // draw debug visualizer
@@ -867,7 +867,7 @@ main :: proc() {
             level_transition_speed :: 4
             text_fade_amount :: level_transition_speed
 
-            handle_curtain: if old_level_index != new_level_index {
+            handle_curtain: if active {
                 text_still_fading = true
 
                 old_curtain_x := curtain.x
@@ -907,7 +907,10 @@ main :: proc() {
                 rl.DrawTextEx(rl.GetFontDefault(), text, text_position, font_size, 1, auto_cast text_color)
 
                 if text_fading == .in_ && opacity == 255 do text_fading = .out
-                else if text_fading == .out && opacity == 0 do text_still_fading = false
+                else if text_fading == .out && opacity == 0 {
+                    text_still_fading = false
+                    active = false
+                }
             }
         }
 
