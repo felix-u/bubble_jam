@@ -59,7 +59,7 @@ View_Id :: enum {
 }
 
 Level :: struct {
-    name: string,
+    name: cstring,
     entities: map[View_Id][dynamic]Entity
 }
 
@@ -434,6 +434,33 @@ main :: proc() {
         mouse_pos := rl.GetMousePosition()
         world_mouse_pos := world_from_screen(mouse_pos)
 
+        @static level_transition_state: struct {
+            old_level_index, new_level_index: int,
+            curtain: rl.Rectangle,
+            curtain_color: Color,
+            render_curtain: bool,
+        }
+
+        level_transition: {
+            using level_transition_state
+            if old_level_index == new_level_index do break level_transition
+
+            old_curtain_x := curtain.x
+            if (curtain.x < 1) {
+                level_transition_speed :: 9
+                curtain.x += level_transition_speed * delta_time
+
+                if old_curtain_x < 0 && 0 <= curtain.x {
+                    curr_level_index = new_level_index
+                    reset_entities_from_level()
+                }
+
+                break level_transition
+            }
+
+            level_transition_state = {}
+        }
+
         { // ed
             switch current_entity_edit_mode {
             case .bubble:
@@ -576,18 +603,24 @@ main :: proc() {
                 reset_entities_from_level()
             }
 
-
-            { // level switching
-                input_level_one_requested := rl.IsKeyPressed(.ONE)
-                input_level_two_requested := rl.IsKeyPressed(.TWO)
-
-                if input_level_one_requested {
-                    curr_level_index = 0
-                    reset_entities_from_level()
+            level_select: { // level switching
+                level_number := 0
+                for digit in 1..=9 {
+                    if !rl.IsKeyPressed(auto_cast ('0' + digit)) do continue
+                    level_number = digit
+                    break
                 }
-                if input_level_two_requested {
-                    curr_level_index = 1
-                    reset_entities_from_level()
+                if level_number == 0 do break level_select
+                assert(level_number <= NUM_LEVELS)
+
+                selected_level_index := level_number - 1
+
+                level_transition_state = {
+                    old_level_index = curr_level_index,
+                    new_level_index = selected_level_index,
+                    curtain = { x = -1, width = 1, height = world_height },
+                    curtain_color = .blue,
+                    render_curtain = true,
                 }
             }
 
@@ -754,7 +787,7 @@ main :: proc() {
                 if did_bubble_collide_with_obstacle {
                     new_popping_bubble := entity^
                     create_pop_ripple_from_circle([2]f32{new_popping_bubble.x, new_popping_bubble.y}, new_popping_bubble.width, new_popping_bubble.color)
-                
+
                     remove_entity(bubble_id, .bubbles, free = true)
 
                     entity.pop_anim_time_amount = 0.25
@@ -864,6 +897,11 @@ main :: proc() {
         }
 
         draw_grid(cell_size)
+
+        if level_transition_state.render_curtain {
+            using level_transition_state
+            rl.DrawRectangleRec(screen_from_world(curtain), auto_cast colors[curtain_color])
+        }
 
         boundary_color := rl.Color{ 255, 0, 0, 150 }
         thickness_world :: 0.01
