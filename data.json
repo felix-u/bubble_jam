@@ -163,7 +163,8 @@
 				"pop_anim_timer": 0.00000000,
 				"pop_anim_time_amount": 0.00000000
 			}
-		]
+		],
+		"hint": "left click"
 	},
 	{
 		"name": "level 2",
@@ -234,7 +235,8 @@
 				"pop_anim_timer": 0.00000000,
 				"pop_anim_time_amount": 0.00000000
 			}
-		]
+		],
+		"hint": ""
 	},
 	{
 		"name": "level 3",
@@ -251,7 +253,8 @@
 		],
 		"bubbles": [
 
-		]
+		],
+		"hint": ""
 	},
 	{
 		"name": "level 4",
@@ -268,7 +271,8 @@
 		],
 		"bubbles": [
 
-		]
+		],
+		"hint": ""
 	},
 	{
 		"name": "level 5",
@@ -285,7 +289,8 @@
 		],
 		"bubbles": [
 
-		]
+		],
+		"hint": ""
 	},
 	{
 		"name": "level 6",
@@ -302,7 +307,8 @@
 		],
 		"bubbles": [
 
-		]
+		],
+		"hint": ""
 	},
 	{
 		"name": "level 7",
@@ -319,7 +325,8 @@
 		],
 		"bubbles": [
 
-		]
+		],
+		"hint": ""
 	},
 	{
 		"name": "level 8",
@@ -336,7 +343,8 @@
 		],
 		"bubbles": [
 
-		]
+		],
+		"hint": ""
 	},
 	{
 		"name": "level 9",
@@ -353,7 +361,8 @@
 		],
 		"bubbles": [
 
-		]
+		],
+		"hint": ""
 	},
 	{
 		"name": "level 10",
@@ -370,6 +379,7 @@
 		],
 		"bubbles": [
 
-		]
+		],
+		"hint": ""
 	}
 ]

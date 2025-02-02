@@ -68,6 +68,7 @@ Level :: struct {
     obstacles: [dynamic]Entity,
     end_goals: [dynamic]Entity,
     bubbles: [dynamic]Entity,
+    hint: cstring,
 }
 
 current_level_index := 0
@@ -826,6 +827,10 @@ main :: proc() {
         if lost {
             begin_transition_to_level(current_level_index)
         }
+
+        hint_font_size: f32 = 0.03
+        padding := [2]f32{ hint_font_size * 0.75, hint_font_size * 1.5 }
+        draw_text(level.hint, { padding.x, world_height - padding.y }, hint_font_size)
 
         { // draw debug visualizer
             // draw small circle where mouse is being held down with left click
