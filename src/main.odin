@@ -37,7 +37,7 @@ Entity :: struct {
     pop_anim_time_amount: f32,
 }
 
-ENTITY_CAP :: 64
+ENTITY_CAP :: 256
 entity_backing_memory: [ENTITY_CAP]Entity
 
 Entity_Index :: distinct int
@@ -73,7 +73,7 @@ Level :: struct {
 }
 
 current_level_index := 0
-NUM_LEVELS :: 10
+NUM_LEVELS :: 9
 
 gun_width :: 0.02
 gun_initial_state :: Entity{
@@ -161,7 +161,7 @@ entity_edit_mode_name_map := [Entity_Edit_Mode]cstring {
     .bubble   = "edit bubble mode",
     .obstacle = "edit obstacle mode",
     .end_goal = "edit end goal mode",
-    .none     = "no edit mode",
+    .none     = "",
 }
 
 entity_view_init :: proc(view: ^Entity_View) -> Entity_View {

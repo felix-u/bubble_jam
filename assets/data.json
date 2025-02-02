@@ -925,7 +925,7 @@
 			0.49000001,
 			0.54250002
 		],
-		"gun_id": 40,
+		"gun_id": 63,
 		"obstacles": [
 
 		],
@@ -1369,24 +1369,6 @@
 				"pop_anim_timer": 0.00000000,
 				"pop_anim_time_amount": 0.00000000
 			}
-		],
-		"hint": ""
-	},
-	{
-		"name": "10. Soda pop",
-		"gun_initial_position": [
-			0.00000000,
-			0.00000000
-		],
-		"gun_id": 63,
-		"obstacles": [
-
-		],
-		"end_goals": [
-
-		],
-		"bubbles": [
-
 		],
 		"hint": ""
 	}
