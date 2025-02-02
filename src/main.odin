@@ -972,7 +972,7 @@ main :: proc() {
 }
 
 draw_grid :: proc(cell_size: f32, color: Color = .black) {
-    tint := rl.Color{0,0,0,25}
+    tint := rl.Color{0,0,0,10}
     for x : f32 = 0.0; x < 1.0; x += cell_size {
         screen_start_pos := screen_from_world([2]f32{ x, 0 })
         screen_end_pos := screen_from_world([2]f32{ x, 1 })
