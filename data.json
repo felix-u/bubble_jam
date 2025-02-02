@@ -3,7 +3,7 @@
 		"name": "1. Poparazzi",
 		"gun_initial_position": [
 			0.00000000,
-			0.28125000
+			0.27125001
 		],
 		"gun_id": 61,
 		"obstacles": [
@@ -57,7 +57,7 @@
 		"name": "2. Don't Pop Believin'",
 		"gun_initial_position": [
 			0.00000000,
-			0.28125000
+			0.27125001
 		],
 		"gun_id": 61,
 		"obstacles": [
@@ -111,7 +111,7 @@
 		"name": "3. Don't Pop Me Now",
 		"gun_initial_position": [
 			0.00000000,
-			0.28125000
+			0.27125001
 		],
 		"gun_id": 60,
 		"obstacles": [
@@ -183,16 +183,16 @@
 		"name": "4. Popular",
 		"gun_initial_position": [
 			0.00000000,
-			0.28125000
+			0.27125001
 		],
 		"gun_id": 59,
 		"obstacles": [
 			{
 				"rect": {
-					"x": 0.50000000,
-					"y": 0.23437500,
-					"width": 0.34375000,
-					"height": 0.10937500
+					"x": 0.54687500,
+					"y": 0.18750000,
+					"width": 0.25000000,
+					"height": 0.18750000
 				},
 				"velocity": [
 					0.00000000,
@@ -274,9 +274,9 @@
 		"name": "5. Pop off",
 		"gun_initial_position": [
 			0.00000000,
-			0.28125000
+			0.27125001
 		],
-		"gun_id": 63,
+		"gun_id": 61,
 		"obstacles": [
 
 		],
