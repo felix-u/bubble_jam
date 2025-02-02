@@ -830,6 +830,10 @@ main :: proc() {
             }
         }
 
+
+        draw_grid(cell_size)
+
+
         for entity_id in views[.popping_bubbles].indices { // draw popping bubbles
             // will be drawn as circle lines instead of solid
             bubble := &entity_backing_memory[entity_id]
@@ -896,7 +900,6 @@ main :: proc() {
             }
         }
 
-        draw_grid(cell_size)
 
         level_transition_animation: {
             using level_transition_state
@@ -969,7 +972,7 @@ main :: proc() {
 }
 
 draw_grid :: proc(cell_size: f32, color: Color = .black) {
-    tint := colors[color]
+    tint := rl.Color{0,0,0,25}
     for x : f32 = 0.0; x < 1.0; x += cell_size {
         screen_start_pos := screen_from_world([2]f32{ x, 0 })
         screen_end_pos := screen_from_world([2]f32{ x, 1 })
