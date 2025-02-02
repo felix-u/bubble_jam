@@ -351,6 +351,29 @@ editor_handle_input_for_placement_rectangle_and_rectangular_entity_creation  :: 
                 remove_entity(entity_id, view_id)
             }
         }
+
+level_transition_state: struct {
+    using non_text_related: struct {
+        old_level_index, new_level_index: int,
+        curtain: rl.Rectangle,
+        curtain_color: Color,
+        render_curtain: bool,
+    },
+    text: cstring,
+    opacity: int,
+    text_fading: enum { in_, out },
+    text_still_fading: bool,
+}
+
+begin_transition_to_level :: proc(new_level_index: int) {
+    assert(new_level_index < NUM_LEVELS)
+    level_transition_state = {
+        old_level_index = current_level_index,
+        new_level_index = new_level_index,
+        curtain = { x = -1, width = 1, height = world_height },
+        curtain_color = .blue,
+        render_curtain = true,
+        text = levels[new_level_index].name,
     }
 }
 
@@ -418,14 +441,7 @@ main :: proc() {
     rl.MaximizeWindow()
     rl.RestoreWindow()
 
-    initial_bubble_radius :: 0.05
-    bubble_initial_state := Entity{
-        x = 0.5,
-        y = 0.3,
-        width = initial_bubble_radius,
-        color = .blue,
-    }
-    push_entity(bubble_initial_state, .bubbles)
+    reset_entities_from_level()
 
     for !rl.WindowShouldClose() {
         if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.B) {
@@ -449,19 +465,6 @@ main :: proc() {
         screen_factors_update_frame_local()
         mouse_pos := rl.GetMousePosition()
         world_mouse_pos := world_from_screen(mouse_pos)
-
-        @static level_transition_state: struct {
-            using non_text_related: struct {
-                old_level_index, new_level_index: int,
-                curtain: rl.Rectangle,
-                curtain_color: Color,
-                render_curtain: bool,
-            },
-            text: cstring,
-            opacity: int,
-            text_fading: enum { in_, out },
-            text_still_fading: bool,
-        }
 
         { // ed
             switch current_entity_edit_mode {
@@ -526,15 +529,7 @@ main :: proc() {
                 assert(level_number <= NUM_LEVELS)
 
                 selected_level_index := level_number - 1
-
-                level_transition_state = {
-                    old_level_index = current_level_index,
-                    new_level_index = selected_level_index,
-                    curtain = { x = -1, width = 1, height = world_height },
-                    curtain_color = .blue,
-                    render_curtain = true,
-                    text = levels[selected_level_index].name,
-                }
+                begin_transition_to_level(selected_level_index)
             }
 
             for edit_mode in Entity_Edit_Mode { // change edit mode
@@ -789,13 +784,21 @@ main :: proc() {
         }
 
         won := len(views[.end_goals].indices) == 0
+        // TODO(felix): level_transition_state.active field
+        level_transition_state_active: bool
+        {
+            using level_transition_state
+            level_transition_state_active = old_level_index != new_level_index
+        }
+        won &&= !level_transition_state_active
         if won {
-            // TODO(felix): use transition system
-            current_level_index = (current_level_index + 1) % NUM_LEVELS
-            reset_entities_from_level()
+            new_level_index := (current_level_index + 1) % NUM_LEVELS
+            begin_transition_to_level(new_level_index)
         }
 
+        // TODO(felix): lost is sometimes true after a win, and not true immediately after a loss
         lost := !won && len(views[.bubbles].indices) == 0
+        lost &&= level_transition_state_active
         if lost {
             // TODO(felix): use transition system
             draw_text("Game Over", [2]f32{0.2, 0.2}, 0.1, .black)
