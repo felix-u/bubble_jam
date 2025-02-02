@@ -7,6 +7,8 @@ import "core:math"
 import "core:mem"
 import la "core:math/linalg"
 import "core:fmt"
+import "core:os"
+import "core:encoding/json"
 
 breakpoint :: intrinsics.debug_trap
 
@@ -61,14 +63,15 @@ View_Id :: enum {
 
 Level :: struct {
     name: cstring,
-    entities: map[View_Id][dynamic]Entity,
     gun_initial_position: [2]f32,
-
     gun_id: Entity_Index,
+    obstacles: [dynamic]Entity,
+    end_goals: [dynamic]Entity,
+    bubbles: [dynamic]Entity,
 }
 
 current_level_index := 0
-NUM_LEVELS :: 2
+NUM_LEVELS :: 10
 
 gun_width :: 0.02
 gun_initial_state :: Entity{
@@ -77,65 +80,65 @@ gun_initial_state :: Entity{
     color = .purple,
 }
 
-levels_init :: proc() -> [NUM_LEVELS]Level {
-    levels := [NUM_LEVELS]Level{
-        {
-            name = "level 1",
-            entities = map[View_Id][dynamic]Entity{
-                .bubbles = [dynamic]Entity{
-                    { x = 0.5, y = 0.1, width = 0.05, color = .red },
-                },
-                .obstacles = [dynamic]Entity{
-                    { x = 0.3, y = 0.3, width = 0.1, height = 0.1, color = .black },
-                },
-                .end_goals = [dynamic]Entity{
-                    { x = 0.7, y = 0.1, width = 0.1, height = 0.1, color = .green },
-                    { x = 0.7, y = 0.3, width = 0.1, height = 0.1, color = .green }
-                },
-            },
-            gun_initial_position = { 0.4, 0 },
-        },
-        {
-            name = "level 2",
-            entities = map[View_Id][dynamic]Entity{
-                .bubbles = [dynamic]Entity{
-                    { x = 0.2, y = 0.3, width = 0.05, color = .red, } },
-                .obstacles = [dynamic]Entity{
-                    { x = 0.3, y = 0.3, width = 0.1, height = 0.1, color = .black },
-                },
-                .end_goals = [dynamic]Entity{
-                    { x = 0.7, y = 0.1, width = 0.1, height = 0.1, color = .green },
-                },
-            },
-            gun_initial_position = { 0, world_height * 0.7 },
-        },
+levels : [NUM_LEVELS]Level
 
+
+level_data_filename := "data.json"
+
+write_levels_to_json_file :: proc() {
+    json_opts := json.Marshal_Options{pretty=true,}
+    json_data, err := json.marshal(levels, opt = json_opts, allocator = context.temp_allocator)
+    if err != nil {
+        fmt.eprintf("error marshalling json: %v\n", err)
+        return
     }
-    return levels
+    file_name := level_data_filename
+    ok := os.write_entire_file(file_name, json_data)
+    if !ok {
+        fmt.eprintf("error writing to file: %v\n", file_name)
+        return
+    }
 }
-levels := levels_init()
 
+read_levels_from_json_file :: proc() {
+    file_name := level_data_filename
+    json_data, ok := os.read_entire_file(file_name)
+    if !ok {
+        fmt.eprintf("error reading from file: %v\n", file_name)
+        return
+    }
+    err := json.unmarshal(json_data, &levels)
+    if err != nil {
+        fmt.eprintf("error unmarshalling json: %v\n", err)
+        return
+    }
+}
+  
 
 
 reset_entities_from_level :: proc() {
     for view_id in View_Id {
         non_zero_resize(&views[view_id].indices, 0)
-        non_zero_resize(&views[view_id].indices, 0)
-        non_zero_resize(&views[view_id].indices, 0)
-        non_zero_resize(&views[view_id].indices, 0)
-        non_zero_resize(&views[view_id].indices, 0)
-        non_zero_resize(&views[view_id].indices, 0)
-        non_zero_resize(&views[view_id].indices, 0)
+        // non_zero_resize(&views[view_id].indices, 0)
+        // non_zero_resize(&views[view_id].indices, 0)
+        // non_zero_resize(&views[view_id].indices, 0)
+        // non_zero_resize(&views[view_id].indices, 0)
+        // non_zero_resize(&views[view_id].indices, 0)
+        // non_zero_resize(&views[view_id].indices, 0)
     }
 
     for i in 1 ..< ENTITY_CAP do append_elem(&views[.freelist].indices, cast(Entity_Index) i)
 
     level := &levels[current_level_index]
 
-    for view_id, entities in level.entities {
-        for entity in entities {
-            push_entity(entity, view_id)
-        }
+    for entity in level.obstacles {
+        push_entity(entity, .obstacles)
+    }
+    for entity in level.end_goals {
+        push_entity(entity, .end_goals)
+    }
+    for entity in level.bubbles {
+        push_entity(entity, .bubbles)
     }
 
     gun := gun_initial_state
@@ -351,6 +354,8 @@ editor_handle_input_for_placement_rectangle_and_rectangular_entity_creation  :: 
                 remove_entity(entity_id, view_id)
             }
         }
+    }
+}
 
 level_transition_state: struct {
     using non_text_related: struct {
@@ -441,6 +446,7 @@ main :: proc() {
     rl.MaximizeWindow()
     rl.RestoreWindow()
 
+    read_levels_from_json_file()
     reset_entities_from_level()
 
     for !rl.WindowShouldClose() {
@@ -504,14 +510,25 @@ main :: proc() {
             }
 
             if rl.IsKeyPressed(.F8) { // save to levels
-                for view_id, &entity_dynamic_array in levels[current_level_index].entities {
-                    non_zero_resize(&entity_dynamic_array, 0)
-                    for entity_id in views[view_id].indices {
-                        entity := entity_backing_memory[entity_id]
-                        append_elem(&entity_dynamic_array, entity)
-                    }
+                non_zero_resize(&levels[current_level_index].bubbles, 0)
+                non_zero_resize(&levels[current_level_index].obstacles, 0)
+                non_zero_resize(&levels[current_level_index].end_goals, 0)
+                
+                for entity_id in views[.bubbles].indices {
+                    entity := entity_backing_memory[entity_id]
+                    append_elem(&levels[current_level_index].bubbles, entity)
+                }
+                for entity_id in views[.obstacles].indices {
+                    entity := entity_backing_memory[entity_id]
+                    append_elem(&levels[current_level_index].obstacles, entity)
+                }
+                for entity_id in views[.end_goals].indices {
+                    entity := entity_backing_memory[entity_id]
+                    append_elem(&levels[current_level_index].end_goals, entity)
                 }
                 save_screen_flash_timer = save_screen_flash_time_amount
+
+                write_levels_to_json_file()
             }
 
             if rl.IsKeyPressed(.F9) { // reset current level
