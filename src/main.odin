@@ -463,6 +463,15 @@ update :: proc() {
     }
 
     screen_factors_update_frame_local()
+
+    screen_height_over_width := screen_size.y / screen_size.x
+    window_too_long := screen_height_over_width < world_height
+    if window_too_long {
+        new_screen_width := screen_size.y / world_height
+        rl.SetWindowSize(auto_cast new_screen_width, auto_cast screen_size.y)
+        screen_factors_update_frame_local()
+    }
+
     mouse_pos := rl.GetMousePosition()
     world_mouse_pos := world_from_screen(mouse_pos)
 
