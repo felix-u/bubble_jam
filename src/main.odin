@@ -201,12 +201,20 @@ push_entity :: proc(entity: Entity, views_to_append: ..View_Id) -> Entity_Index 
     return index
 }
 
-free_entity_id :: #force_inline proc(entity_id: Entity_Index) { append_elem(&views[.freelist].indices, entity_id) }
+remove_entity :: proc(entity_id: Entity_Index, view_ids: ..View_Id, free: bool = true) {
+    if free {
+        append_elem(&views[.freelist].indices, entity_id)
+        index, found := slice.linear_search(views[.active].indices[:], entity_id)
+        assert(found)
+        unordered_remove(&views[.active].indices, index)
+    }
 
-remove_entity_id :: proc(entity_id: Entity_Index, view_id: View_Id) {
-    view := &views[view_id]
-    index, found := slice.linear_search(view.indices[:], entity_id)
-    if found do unordered_remove(&view.indices, index)
+    for view_id in view_ids {
+        view := &views[view_id]
+        index, found := slice.linear_search(view.indices[:], entity_id)
+        assert(found)
+        unordered_remove(&view.indices, index)
+    }
 }
 
 screen_width: f32 = 960
@@ -418,9 +426,7 @@ main :: proc() {
                     did_mouse_rectangle_intersect := rl.CheckCollisionPointRec(world_mouse_pos, entity.rect)
 
                     if did_mouse_rectangle_intersect {
-                        remove_entity_id(entity_id, .obstacles)
-                        remove_entity_id(entity_id, .active)
-                        free_entity_id(entity_id)
+                        remove_entity(entity_id, .obstacles)
                     }
                 }
             }
@@ -535,9 +541,7 @@ main :: proc() {
                 }
                 push_entity(new_bubble, .bubbles)
 
-                remove_entity_id(splitter_id, .splitters)
-                remove_entity_id(splitter_id, .active)
-                free_entity_id(splitter_id)
+                remove_entity(splitter_id, .splitters)
 
                 continue bubbles
             }
@@ -559,7 +563,7 @@ main :: proc() {
             colliding_screen_edge_horizontal := entity.x <= entity.width || entity.x >= 1 - entity.width
             colliding_screen_edge_vertical := entity.y <= entity.height || entity.y >= world_height - entity.height
             if colliding_screen_edge_horizontal || colliding_screen_edge_vertical {
-                remove_entity_id(entity_id, .bubbles)
+                remove_entity(entity_id, .bubbles, free = false)
                 entity.pop_anim_time_amount = 0.25
                 entity.pop_anim_timer = entity.pop_anim_time_amount
 
@@ -595,7 +599,7 @@ main :: proc() {
 
                 did_bubble_collide_with_obstacle := rl.CheckCollisionCircleRec([2]f32{screen_bubble_pos.x, screen_bubble_pos.y}, screen_bubble_radius, screen_obstacle_rectangle)
                 if did_bubble_collide_with_obstacle {
-                    remove_entity_id(bubble_id, .bubbles)
+                    remove_entity(bubble_id, .bubbles, free = false)
 
                     entity.pop_anim_time_amount = 0.25
                     entity.pop_anim_timer = entity.pop_anim_time_amount
@@ -632,9 +636,7 @@ main :: proc() {
             entity.pop_anim_timer -= delta_time
             entity.radius += delta_time * 0.5
             if entity.pop_anim_timer <= 0 {
-                remove_entity_id(entity_id, .popping_bubbles)
-                remove_entity_id(entity_id, .active)
-                free_entity_id(entity_id)
+                remove_entity(entity_id, .popping_bubbles)
             }
         }
 
