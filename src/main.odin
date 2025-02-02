@@ -832,18 +832,17 @@ main :: proc() {
             rl.DrawCircle(i32(screen_bubble_placement_circle.x), i32(screen_bubble_placement_circle.y), screen_bubble_placement_circle.z, auto_cast transparent_blue)
         }
 
-        // TODO(felix): this needs to be split up into a win case and a lose case
-        { // draw game over text when all bubbles gone
-            if len(views[.bubbles].indices) == 0 {
-                draw_text("Game Over", [2]f32{0.2, 0.2}, 0.1, .black)
-            }
+        won := len(views[.end_goals].indices) == 0
+        if won {
+            // TODO(felix): use transition system
+            current_level_index = (current_level_index + 1) % NUM_LEVELS
+            reset_entities_from_level()
         }
 
-        { // go to next level with wrap if all end_goals are gone
-            if len(views[.end_goals].indices) == 0 {
-                current_level_index = (current_level_index + 1) % NUM_LEVELS
-                reset_entities_from_level()
-            }
+        lost := !won && len(views[.bubbles].indices) == 0
+        if lost {
+            // TODO(felix): use transition system
+            draw_text("Game Over", [2]f32{0.2, 0.2}, 0.1, .black)
         }
 
         { // draw debug visualizer
