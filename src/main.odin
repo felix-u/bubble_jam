@@ -507,7 +507,7 @@ main :: proc() {
             }
             bullet.velocity = { target.x - bullet.x, target.y - bullet.y }
             bullet.velocity = la.normalize(bullet.velocity)
-            bullet_speed :: 1.5
+            bullet_speed :: 0.5
             bullet.velocity *= bullet_speed
 
             view_id: View_Id = .growers if shoot_growth_bullets else .splitters
@@ -522,6 +522,7 @@ main :: proc() {
 
                 // TODO(felix): this check doesn't work sometimes, because the splitter moves too quickly
                 intersect := rl.CheckCollisionRecs(splitter.rect, entity.rect)
+
                 if !intersect do continue
 
                 vector := la.normalize(splitter.velocity)
@@ -637,6 +638,14 @@ main :: proc() {
             if entity.pop_anim_timer <= 0 {
                 remove_entity(entity_id, .popping_bubbles)
             }
+        }
+
+        // NOTE(felix): this is mainly to free projectiles which miss and go offscreen
+        for entity_id in views[.active].indices {
+            using entity := &entity_backing_memory[entity_id]
+            offscreen := x + width <= 0 || 1 <= x
+            offscreen ||= y + height <= 0 || world_height <= y
+            if offscreen do remove_entity(entity_id)
         }
 
         for entity_id in views[.popping_bubbles].indices { // draw popping bubbles
