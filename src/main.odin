@@ -379,16 +379,10 @@ main :: proc() {
                 screen_obstacle_rectangle := screen_from_world(obstacle.rect)
                 did_bubble_collide_with_obstacle := rl.CheckCollisionCircleRec([2]f32{screen_bubble_pos.x, screen_bubble_pos.y}, screen_bubble_radius, screen_obstacle_rectangle)
                 if did_bubble_collide_with_obstacle {
-                    index, found := slice.linear_search(views[.bubbles].indices[:], entity_id)
-                    if found {
-                        unordered_remove(&views[.bubbles].indices, index)
-                    }
+                    remove_entity(entity_id, .bubbles, free = false)
                     entity.pop_anim_time_amount = 0.25
                     entity.pop_anim_timer = entity.pop_anim_time_amount
-                    index, found = slice.linear_search(views[.popping_bubbles].indices[:], entity_id)
-                    if !found {
-                        append_elem(&views[.popping_bubbles].indices, entity_id)
-                    }
+                    append_elem(&views[.popping_bubbles].indices, entity_id)
                     break
                 }
             }
