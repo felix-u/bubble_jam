@@ -172,13 +172,21 @@ Entity_Edit_Mode :: enum {
     bubble,
     obstacle,
     end_goal,
+    none,
 }
 current_entity_edit_mode : Entity_Edit_Mode = .bubble
-// Entity_Edit_Mode_Enter_KeyPress :: enum {
-//     bubble = .,
-//     obstacle = .O,
-//     end_goal = .E,
-// }
+entity_edit_mode_keypress_map := [Entity_Edit_Mode]rl.KeyboardKey {
+    .bubble   = .B,
+    .obstacle = .O,
+    .end_goal = .G,
+    .none     = .N,
+}
+entity_edit_mode_name_map := [Entity_Edit_Mode]string {
+    .bubble   = "edit bubble mode",
+    .obstacle = "edit obstacle mode",
+    .end_goal = "edit end goal mode",
+    .none     = "no edit mode",
+}
 
 entity_view_init :: proc(view: ^Entity_View) -> Entity_View {
     view.indices = slice.into_dynamic(view.backing_memory[:])
@@ -289,7 +297,19 @@ absolute_normalized_rectangle :: proc(r: rl.Rectangle) -> rl.Rectangle {
     return ret
 }
 
+bubble_placement_circle := [3]f32{0,0,0}
+
 world_height: f32 : 9.0 / 16.0
+
+snap_rectangle_to_grid :: proc(r: rl.Rectangle) -> rl.Rectangle {
+    ret := rl.Rectangle{
+        x = math.floor(r.x / cell_size) * cell_size,
+        y = math.floor(r.y / cell_size) * cell_size,
+        width = math.ceil(r.width / cell_size) * cell_size,
+        height = math.ceil(r.height / cell_size) * cell_size,
+    }
+    return ret
+}
 
 main :: proc() {
     when ODIN_DEBUG { 	// memory leak tracking
@@ -391,68 +411,101 @@ main :: proc() {
         world_mouse_pos := world_from_screen(mouse_pos)
 
         { // ed
-            if rl.IsKeyReleased(.LEFT_SHIFT) {
-                // obstacle_placement_unnormalized_rectangle.x = 0
-                // obstacle_placement_unnormalized_rectangle.y = 0
-                // obstacle_placement_unnormalized_rectangle.width = 0
-                // obstacle_placement_unnormalized_rectangle.height = 0
+            switch current_entity_edit_mode {
+            case .bubble:
+            {
+                if rl.IsMouseButtonPressed(.LEFT) {
+                    bubble_placement_circle = [3]f32{world_mouse_pos.x, world_mouse_pos.y, 0}
+                }
+                if rl.IsMouseButtonReleased(.LEFT) {
+                    new_bubble_entity := Entity {
+                        x = bubble_placement_circle[0],
+                        y = bubble_placement_circle[1],
+                        width = bubble_placement_circle[2],
+                        color = .blue,
+                    }
+                    push_entity(new_bubble_entity, .bubbles)
+                    bubble_placement_circle = [3]f32{0,0,0}
+                }
+                if rl.IsMouseButtonDown(.LEFT) {
+                    vector_from_center_to_mouse := [2]f32{world_mouse_pos.x - bubble_placement_circle[0], world_mouse_pos.y - bubble_placement_circle[1]}
+                    length := la.length(vector_from_center_to_mouse)
+                    bubble_placement_circle[2] = length
+                }
             }
-            if rl.IsMouseButtonReleased(.LEFT) && obstacle_placement_unnormalized_rectangle.width != 0 && obstacle_placement_unnormalized_rectangle.height != 0 {
+            case .obstacle:
+            {
+                if rl.IsMouseButtonReleased(.LEFT) && obstacle_placement_unnormalized_rectangle.width != 0 && obstacle_placement_unnormalized_rectangle.height != 0 {
 
-                obstacle_rectangle := absolute_normalized_rectangle(obstacle_placement_unnormalized_rectangle)
-                if obstacle_rectangle.width < cell_size {
-                    obstacle_rectangle.width = cell_size
+                    obstacle_rectangle := absolute_normalized_rectangle(obstacle_placement_unnormalized_rectangle)
+                    if obstacle_rectangle.width < cell_size {
+                        obstacle_rectangle.width = cell_size
+                    }
+                    if obstacle_rectangle.height < cell_size {
+                        obstacle_rectangle.height = cell_size
+                    }
+                    snap_adjusted_obstacle_rectangle := snap_rectangle_to_grid(obstacle_rectangle)
+                    obstacle_entity := Entity{
+                        x = snap_adjusted_obstacle_rectangle.x,
+                        y = snap_adjusted_obstacle_rectangle.y,
+                        width = snap_adjusted_obstacle_rectangle.width,
+                        height = snap_adjusted_obstacle_rectangle.height,
+                        color = .black,
+                    }
+                    push_entity(obstacle_entity, .obstacles)
+                    obstacle_placement_unnormalized_rectangle = rl.Rectangle{0,0,0,0}
                 }
-                if obstacle_rectangle.height < cell_size {
-                    obstacle_rectangle.height = cell_size
-                }
-                snap_adjusted_obstacle_rectangle := rl.Rectangle{
-                    x = math.floor(obstacle_rectangle.x / cell_size) * cell_size,
-                    y = math.floor(obstacle_rectangle.y / cell_size) * cell_size,
-                    width = math.round(obstacle_rectangle.width / cell_size) * cell_size,
-                    height = math.round(obstacle_rectangle.height / cell_size) * cell_size,
-                }
-                obstacle_entity := Entity{
-                    x = snap_adjusted_obstacle_rectangle.x,
-                    y = snap_adjusted_obstacle_rectangle.y,
-                    width = snap_adjusted_obstacle_rectangle.width,
-                    height = snap_adjusted_obstacle_rectangle.height,
-                    color = .black,
-                }
-                push_entity(obstacle_entity, .obstacles)
-                obstacle_placement_unnormalized_rectangle = rl.Rectangle{0,0,0,0}
-            }
-            else if rl.IsMouseButtonPressed(.LEFT) {
-                using obstacle_placement_unnormalized_rectangle
-                if rl.IsKeyDown(.LEFT_SHIFT) {
+                else if rl.IsMouseButtonPressed(.LEFT) {
+                    using obstacle_placement_unnormalized_rectangle
                     x = world_mouse_pos.x
                     y = world_mouse_pos.y
+                    
+                } else if rl.IsMouseButtonDown(.LEFT) {
+                    using obstacle_placement_unnormalized_rectangle
+                    if x != 0 && y != 0 {
+                        width = world_mouse_pos.x - x
+                        height = world_mouse_pos.y - y
+                    }
                 }
-            } else if rl.IsMouseButtonDown(.LEFT) {
-                using obstacle_placement_unnormalized_rectangle
-                if x != 0 && y != 0 {
-                    width = world_mouse_pos.x - x
-                    height = world_mouse_pos.y - y
-                }
-            }
-            else if rl.IsMouseButtonPressed(.RIGHT) && rl.IsKeyDown(.LEFT_SHIFT) {
-                // delete any colliding obstacles
-                for entity_id in views[.obstacles].indices {
-                    entity := entity_backing_memory[entity_id]
-                    did_mouse_rectangle_intersect := rl.CheckCollisionPointRec(world_mouse_pos, entity.rect)
-
-                    if did_mouse_rectangle_intersect {
-                        remove_entity(entity_id, .obstacles)
+                else if rl.IsMouseButtonPressed(.RIGHT) {
+                    // delete any colliding obstacles
+                    for entity_id in views[.obstacles].indices {
+                        entity := entity_backing_memory[entity_id]
+                        did_mouse_rectangle_intersect := rl.CheckCollisionPointRec(world_mouse_pos, entity.rect)
+    
+                        if did_mouse_rectangle_intersect {
+                            remove_entity(entity_id, .obstacles)
+                        }
                     }
                 }
             }
-
-            if rl.IsKeyPressed(.N) || rl.IsMouseButtonPressed(.MIDDLE) {
-                bubble_to_create := bubble_initial_state
-                bubble_to_create.x = world_mouse_pos.x
-                bubble_to_create.y = world_mouse_pos.y
-                push_entity(bubble_to_create, .bubbles)
+            case .end_goal:
+            {
+                if rl.IsMouseButtonPressed(.LEFT) {
+                    end_goal_rectangle := rl.Rectangle{
+                        x = world_mouse_pos.x,
+                        y = world_mouse_pos.y,
+                        width = cell_size,
+                        height = cell_size,
+                    }
+                    
+                    snap_adjusted_end_goal_rectangle := rl.Rectangle{
+                        x = math.floor(end_goal_rectangle.x / cell_size) * cell_size,
+                        y = math.floor(end_goal_rectangle.y / cell_size) * cell_size,
+                        width = math.round(end_goal_rectangle.width / cell_size) * cell_size,
+                        height = math.round(end_goal_rectangle.height / cell_size) * cell_size,
+                    }
+                    end_goal_entity := Entity{
+                        rect = snap_adjusted_end_goal_rectangle,
+                        color = .green,
+                    }
+                    push_entity(end_goal_entity, .end_goals)
+                }
             }
+            case .none: {}
+            }
+
+            
 
             { // level switching
                 input_level_one_requested := rl.IsKeyPressed(.ONE)
@@ -465,6 +518,12 @@ main :: proc() {
                 if input_level_two_requested {
                     curr_level_index = 1
                     reset_entities_from_level()
+                }
+            }
+
+            for edit_mode in Entity_Edit_Mode { // change edit mode
+                if rl.IsKeyPressed(entity_edit_mode_keypress_map[edit_mode]) {
+                    current_entity_edit_mode = edit_mode
                 }
             }
         }
@@ -505,8 +564,8 @@ main :: proc() {
         gun.x = clamp(gun.x, 0, max_x(gun))
         gun.y = clamp(gun.y, 0, max_y(gun))
 
-        shoot_growth_bullets := !rl.IsKeyDown(.LEFT_SHIFT) && rl.IsMouseButtonPressed(.LEFT)
-        shoot_splitting_bullets := !rl.IsKeyDown(.LEFT_SHIFT) && rl.IsMouseButtonPressed(.RIGHT)
+        shoot_growth_bullets := !rl.IsKeyDown(.LEFT_SHIFT) && rl.IsMouseButtonPressed(.LEFT) && current_entity_edit_mode == .none
+        shoot_splitting_bullets := !rl.IsKeyDown(.LEFT_SHIFT) && rl.IsMouseButtonPressed(.RIGHT) && current_entity_edit_mode == .none
         shoot_bullets := shoot_growth_bullets || shoot_splitting_bullets
         if shoot_bullets {
             target := world_mouse_pos
@@ -688,7 +747,10 @@ main :: proc() {
             rl.DrawCircleV(screen_pos, screen_radius, auto_cast colors[bubble.color])
         }
 
-
+        {
+            edit_mode_text := entity_edit_mode_name_map[current_entity_edit_mode]
+            draw_text(edit_mode_text, [2]f32{0.01, 0.01}, 0.02, .black)
+        }
 
         { // draw placement rectangle
             obstacle_placement_rectangle := absolute_normalized_rectangle(obstacle_placement_unnormalized_rectangle)
