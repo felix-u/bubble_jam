@@ -53,7 +53,8 @@ View_Id :: enum {
     active,
     bubbles,
     popping_bubbles,
-    bullet_bubbles,
+    growers,
+    splitters,
     obstacles,
     guns,
     end_goals,
@@ -139,7 +140,7 @@ levels_init :: proc() -> [NUM_LEVELS]Level {
                 },
             },
         },
-        
+
     }
     return levels
 }
@@ -148,13 +149,15 @@ levels := levels_init()
 
 
 reset_entities_from_level :: proc() {
-    non_zero_resize(&views[.bubbles].indices, 0)
-    non_zero_resize(&views[.obstacles].indices, 0)
-    non_zero_resize(&views[.popping_bubbles].indices, 0)
-    non_zero_resize(&views[.bullet_bubbles].indices, 0)
-    non_zero_resize(&views[.guns].indices, 0)
-    non_zero_resize(&views[.active].indices, 0)
-    non_zero_resize(&views[.freelist].indices, 0)
+    for view_id in View_Id {
+        non_zero_resize(&views[view_id].indices, 0)
+        non_zero_resize(&views[view_id].indices, 0)
+        non_zero_resize(&views[view_id].indices, 0)
+        non_zero_resize(&views[view_id].indices, 0)
+        non_zero_resize(&views[view_id].indices, 0)
+        non_zero_resize(&views[view_id].indices, 0)
+        non_zero_resize(&views[view_id].indices, 0)
+    }
 
     for i in 1 ..< ENTITY_CAP do append_elem(&views[.freelist].indices, cast(Entity_Index) i)
 
@@ -173,7 +176,8 @@ entity_view_init :: proc(view: ^Entity_View) -> Entity_View {
 views := [View_Id]Entity_View{
     .bubbles = entity_view_init(&{}),
     .popping_bubbles = entity_view_init(&{}),
-    .bullet_bubbles = entity_view_init(&{}),
+    .growers = entity_view_init(&{}),
+    .splitters = entity_view_init(&{}),
     .obstacles = entity_view_init(&{}),
     .freelist = entity_view_init(&{}),
     .end_goals = entity_view_init(&{}),
@@ -190,25 +194,19 @@ cell_size : f32 = auto_cast f32(1.0)/nb_cells_width
 push_entity :: proc(entity: Entity, views_to_append: ..View_Id) -> Entity_Index {
     index, ok := pop_safe(&views[.freelist].indices)
     append_elem(&views[.active].indices, index)
-    if !ok do return Entity_Index(0)
+    assert(ok)
     entity_backing_memory[index] = entity
 
     for id in views_to_append do append_elem(&views[id].indices, index)
     return index
 }
 
-remove_entity :: proc(entity_id: Entity_Index, views_to_remove_from: ..View_Id, free: bool = true) {
-    if free {
-        append_elem(&views[.freelist].indices, entity_id)
-        index, found := slice.linear_search(views[.active].indices[:], entity_id)
-        if found do unordered_remove(&views[.active].indices, index)
-    }
+free_entity_id :: #force_inline proc(entity_id: Entity_Index) { append_elem(&views[.freelist].indices, entity_id) }
 
-    for view_id in views_to_remove_from {
-        view := views[view_id]
-        index, found := slice.linear_search(view.indices[:], entity_id)
-        if found do unordered_remove(&view.indices, index)
-    }
+remove_entity_id :: proc(entity_id: Entity_Index, view_id: View_Id) {
+    view := &views[view_id]
+    index, found := slice.linear_search(view.indices[:], entity_id)
+    if found do unordered_remove(&view.indices, index)
 }
 
 screen_width: f32 = 960
@@ -420,12 +418,14 @@ main :: proc() {
                     did_mouse_rectangle_intersect := rl.CheckCollisionPointRec(world_mouse_pos, entity.rect)
 
                     if did_mouse_rectangle_intersect {
-                        remove_entity(entity_id, .obstacles)
+                        remove_entity_id(entity_id, .obstacles)
+                        remove_entity_id(entity_id, .active)
+                        free_entity_id(entity_id)
                     }
                 }
             }
 
-            if rl.IsMouseButtonPressed(.MIDDLE) {
+            if rl.IsKeyPressed(.N) || rl.IsMouseButtonPressed(.MIDDLE) {
                 bubble_to_create := bubble_initial_state
                 bubble_to_create.x = world_mouse_pos.x
                 bubble_to_create.y = world_mouse_pos.y
@@ -483,8 +483,10 @@ main :: proc() {
         gun.x = clamp(gun.x, 0, max_x(gun))
         gun.y = clamp(gun.y, 0, max_y(gun))
 
-        shoot := !rl.IsKeyDown(.LEFT_SHIFT) && rl.IsMouseButtonPressed(.LEFT)
-        if shoot {
+        shoot_growth_bullets := !rl.IsKeyDown(.LEFT_SHIFT) && rl.IsMouseButtonPressed(.LEFT)
+        shoot_splitting_bullets := !rl.IsKeyDown(.LEFT_SHIFT) && rl.IsMouseButtonPressed(.RIGHT)
+        shoot_bullets := shoot_growth_bullets || shoot_splitting_bullets
+        if shoot_bullets {
             target := world_mouse_pos
             gun_center := [2]f32{ gun.x + gun.width / 2, gun.y + gun.height / 2 }
 
@@ -494,49 +496,74 @@ main :: proc() {
                 y = gun_center.y - bullet_radius,
                 width = bullet_radius * 2,
                 height = bullet_radius * 2,
-                color = .blue,
+                color = .blue if shoot_growth_bullets else .red,
             }
             bullet.velocity = { target.x - bullet.x, target.y - bullet.y }
             bullet.velocity = la.normalize(bullet.velocity)
             bullet_speed :: 1.5
             bullet.velocity *= bullet_speed
 
-            push_entity(bullet, .bullet_bubbles)
+            view_id: View_Id = .growers if shoot_growth_bullets else .splitters
+            push_entity(bullet, view_id)
         }
 
-        for entity_id in views[.bubbles].indices { //update bubbles
+        bubbles: for entity_id in views[.bubbles].indices { // update bubbles
             entity := &entity_backing_memory[entity_id]
-            is_move_input := rl.IsMouseButtonPressed(.LEFT)
-            if is_move_input {
-                is_mouse_click_intersect_with_bubble := rl.CheckCollisionPointCircle(world_mouse_pos, [2]f32{entity.x, entity.y}, entity.radius)
-                if is_mouse_click_intersect_with_bubble  {
+
+            for splitter_id in views[.splitters].indices {
+                splitter := &entity_backing_memory[splitter_id]
+
+                // TODO(felix): this check doesn't work sometimes, because the splitter moves too quickly
+                intersect := rl.CheckCollisionRecs(splitter.rect, entity.rect)
+                if !intersect do continue
+
+                // TODO(felix): This is also wrong, and currently produces random-seeming results.
+                //              I think this vector needs to be the normalised vector of the splitter's velocity
+                vector_from_click_to_bubble := [2]f32{entity.x - world_mouse_pos.x, entity.y - world_mouse_pos.y}
+                new_velocity := vector_from_click_to_bubble * 2
+                first_bubble_velocity_rotated_90_degrees := rl.Vector2Rotate(new_velocity, 0.6)
+                second_bubble_velocity_rotate_90_degrees := rl.Vector2Rotate(new_velocity, -0.6)
+                entity.radius /= 2
+                entity.velocity = first_bubble_velocity_rotated_90_degrees
+
+                new_bubble := Entity{
+                    x = entity.x,
+                    y = entity.y,
+                    radius = entity.radius,
+                    color = entity.color,
+                    velocity = second_bubble_velocity_rotate_90_degrees,
+                }
+                push_entity(new_bubble, .bubbles)
+
+                remove_entity_id(splitter_id, .splitters)
+                remove_entity_id(splitter_id, .active)
+                free_entity_id(splitter_id)
+
+                continue bubbles
+            }
+
+            for grower_id in views[.growers].indices {
+                grower := &entity_backing_memory[grower_id]
+
+                // TODO(felix): same problem as above, with the splitters
+                intersect := rl.CheckCollisionRecs(grower.rect, entity.rect)
+                if intersect {
+                    // TODO(felix): ditto
                     vector_from_click_to_bubble := [2]f32{world_mouse_pos.x - entity.x, world_mouse_pos.y - entity.y}
                     vector_from_bubble_to_click := [2]f32{-vector_from_click_to_bubble.x, -vector_from_click_to_bubble.y}
                     entity.velocity = vector_from_bubble_to_click * 2
                     entity.radius *= 1.05
                 }
             }
-            is_split_input := rl.IsMouseButtonPressed(.RIGHT)
-            if is_split_input {
-                is_mouse_click_intersect_with_bubble := rl.CheckCollisionPointCircle(world_mouse_pos, [2]f32{entity.x, entity.y}, entity.radius)
-                if is_mouse_click_intersect_with_bubble  {
-                    vector_from_click_to_bubble := [2]f32{entity.x - world_mouse_pos.x, entity.y - world_mouse_pos.y}
-                    velocity := vector_from_click_to_bubble * 2
-                    first_bubble_velocity_rotated_90_degrees := rl.Vector2Rotate(velocity, 0.6)
-                    second_bubble_velocity_rotate_90_degrees := rl.Vector2Rotate(velocity, -0.6)
-                    entity.radius /= 2
-                    entity.velocity = first_bubble_velocity_rotated_90_degrees
 
-                    new_bubble := Entity{
-                        x = entity.x,
-                        y = entity.y,
-                        radius = entity.radius,
-                        color = entity.color,
-                        velocity = second_bubble_velocity_rotate_90_degrees,
-                    }
-                    push_entity(new_bubble, .bubbles)
-                    break
-                }
+            colliding_screen_edge_horizontal := entity.x <= entity.width || entity.x >= 1 - entity.width
+            colliding_screen_edge_vertical := entity.y <= entity.height || entity.y >= world_height - entity.height
+            if colliding_screen_edge_horizontal || colliding_screen_edge_vertical {
+                remove_entity_id(entity_id, .bubbles)
+                entity.pop_anim_time_amount = 0.25
+                entity.pop_anim_timer = entity.pop_anim_time_amount
+
+                append_elem(&views[.popping_bubbles].indices, entity_id)
             }
         }
 
@@ -568,9 +595,7 @@ main :: proc() {
 
                 did_bubble_collide_with_obstacle := rl.CheckCollisionCircleRec([2]f32{screen_bubble_pos.x, screen_bubble_pos.y}, screen_bubble_radius, screen_obstacle_rectangle)
                 if did_bubble_collide_with_obstacle {
-                    // NOTE(felix): I tried using remove_entity() here but got weird behaviour which could have been a miscompilation
-                    index, found := slice.linear_search(views[.bubbles].indices[:], bubble_id)
-                    if found do unordered_remove(&views[.bubbles].indices, index)
+                    remove_entity_id(bubble_id, .bubbles)
 
                     entity.pop_anim_time_amount = 0.25
                     entity.pop_anim_timer = entity.pop_anim_time_amount
@@ -589,6 +614,7 @@ main :: proc() {
                 if did_bubble_collide_with_end_goal {
                     index, found := slice.linear_search(views[.bubbles].indices[:], bubble_id)
                     if found do unordered_remove(&views[.bubbles].indices, index)
+
                     entity.pop_anim_time_amount = 0.25
                     entity.pop_anim_timer = entity.pop_anim_time_amount
                     append_elem(&views[.popping_bubbles].indices, bubble_id)
@@ -606,12 +632,9 @@ main :: proc() {
             entity.pop_anim_timer -= delta_time
             entity.radius += delta_time * 0.5
             if entity.pop_anim_timer <= 0 {
-                index, found := slice.linear_search(views[.popping_bubbles].indices[:], entity_id)
-                if found do unordered_remove(&views[.popping_bubbles].indices, index)
-                index, found = slice.linear_search(views[.active].indices[:], entity_id)
-                if found do unordered_remove(&views[.active].indices, index)
-                append_elem(&views[.freelist].indices, entity_id)
-                
+                remove_entity_id(entity_id, .popping_bubbles)
+                remove_entity_id(entity_id, .active)
+                free_entity_id(entity_id)
             }
         }
 
@@ -636,7 +659,7 @@ main :: proc() {
             rl.DrawCircleV(screen_pos, screen_radius, auto_cast colors[bubble.color])
         }
 
-        
+
 
         { // draw placement rectangle
             obstacle_placement_rectangle := absolute_normalized_rectangle(obstacle_placement_unnormalized_rectangle)
