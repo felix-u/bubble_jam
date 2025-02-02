@@ -659,7 +659,7 @@ main :: proc() {
         if shoot_bullet {
             gun_center := [2]f32{ gun.x + gun.width / 2, gun.y + gun.height / 2 }
 
-            bullet_radius :: 0.01
+            bullet_radius :: 0.005
             bullet := Entity{
                 x = gun_center.x - bullet_radius,
                 y = gun_center.y - bullet_radius,
@@ -672,7 +672,7 @@ main :: proc() {
 
             bullet.velocity = { target.x - bullet.x, target.y - bullet.y }
             bullet.velocity = la.normalize(bullet.velocity)
-            bullet_speed :: 0.5
+            bullet_speed :: 0.9
             bullet.velocity *= bullet_speed
 
             view_id: View_Id = .growers if shoot_grower else .splitters
