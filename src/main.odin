@@ -14,7 +14,7 @@ breakpoint :: intrinsics.debug_trap
 
 game_name :: "bubble"
 
-Color :: enum { black, blue, dark_blue, purple, red, white, light_grey, green, gold }
+Color :: enum { black, blue, dark_blue, purple, red, white, light_grey, green, orange, gold }
 colors := [Color][4]u8{
     .black = { 0, 0, 0, 255 },
     .blue = { 0, 0, 255, 255 },
@@ -25,6 +25,7 @@ colors := [Color][4]u8{
     .green = { 0, 200, 0, 255 },
     .gold = { 255, 215, 0, 255 },
     .white = { 255, 255, 255, 255 },
+    .orange = { 0, 120, 170, 255 },
 }
 
 Entity :: struct {
@@ -719,9 +720,10 @@ update :: proc() {
         entity.y += entity.velocity.y * delta_time
     }
 
+    bubble_to_small_amount : f32 = 0.003
     for bubble_id in views[.bubbles].indices { // "pop" bubbles if they touch an obstacle or get too small
         entity := &entity_backing_memory[bubble_id]
-        if entity.width < 0.003 { // too small
+        if entity.width < bubble_to_small_amount { // too small
             new_popping_bubble := entity^
             create_pop_ripple_from_circle([2]f32{new_popping_bubble.x, new_popping_bubble.y}, new_popping_bubble.width, new_popping_bubble.color)
 
@@ -818,7 +820,9 @@ update :: proc() {
         bubble := &entity_backing_memory[entity_id]
         screen_pos := screen_from_world([2]f32{ bubble.x, bubble.y })
         screen_radius := screen_from_world(bubble.width)
-        rl.DrawCircleV(screen_pos, screen_radius, auto_cast colors[bubble.color])
+        color := bubble.color
+        if bubble.width <= bubble_to_small_amount * 2 do color = .orange
+        rl.DrawCircleV(screen_pos, screen_radius, auto_cast colors[color])
     }
 
     { // draw ed stuff
