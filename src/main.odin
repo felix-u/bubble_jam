@@ -566,10 +566,10 @@ main :: proc() {
         gun.x = clamp(gun.x, 0, max_x(gun))
         gun.y = clamp(gun.y, 0, max_y(gun))
 
-        shoot_growth_bullets := !rl.IsKeyDown(.LEFT_SHIFT) && rl.IsMouseButtonPressed(.LEFT) && current_entity_edit_mode == .none
-        shoot_splitting_bullets := !rl.IsKeyDown(.LEFT_SHIFT) && rl.IsMouseButtonPressed(.RIGHT) && current_entity_edit_mode == .none
-        shoot_bullets := shoot_growth_bullets || shoot_splitting_bullets
-        if shoot_bullets {
+        shoot_grower := !rl.IsKeyDown(.LEFT_SHIFT) && rl.IsMouseButtonPressed(.LEFT) && current_entity_edit_mode == .none
+        shoot_splitter := !rl.IsKeyDown(.LEFT_SHIFT) && rl.IsMouseButtonPressed(.RIGHT) && current_entity_edit_mode == .none
+        shoot_bullet := shoot_grower || shoot_splitter
+        if shoot_bullet {
             target := world_mouse_pos
             gun_center := [2]f32{ gun.x + gun.width / 2, gun.y + gun.height / 2 }
 
@@ -579,14 +579,14 @@ main :: proc() {
                 y = gun_center.y - bullet_radius,
                 width = bullet_radius * 2,
                 height = bullet_radius * 2,
-                color = .blue if shoot_growth_bullets else .red,
+                color = .blue if shoot_grower else .red,
             }
             bullet.velocity = { target.x - bullet.x, target.y - bullet.y }
             bullet.velocity = la.normalize(bullet.velocity)
             bullet_speed :: 0.5
             bullet.velocity *= bullet_speed
 
-            view_id: View_Id = .growers if shoot_growth_bullets else .splitters
+            view_id: View_Id = .growers if shoot_grower else .splitters
             push_entity(bullet, view_id)
         }
 
@@ -627,12 +627,14 @@ main :: proc() {
 
                 intersect := rl.CheckCollisionCircleRec({ x, y }, width, grower.rect)
 
-                if intersect {
-                    vector := la.normalize(grower.velocity)
-                    velocity_factor :: 0.1
-                    entity.velocity = vector * velocity_factor
-                    entity.width *= 1.05
-                }
+                if !intersect do continue
+
+                vector := la.normalize(grower.velocity)
+                velocity_factor :: 0.1
+                entity.velocity = vector * velocity_factor
+                entity.width *= 1.05
+
+                remove_entity(grower_id, .growers)
             }
 
             colliding_screen_edge_horizontal := x - width <= 0 || 1 <= x + width
