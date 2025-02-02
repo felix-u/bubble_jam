@@ -468,6 +468,7 @@ main :: proc() {
     defer rl.CloseWindow()
 
     target_fps := rl.GetMonitorRefreshRate(rl.GetCurrentMonitor())
+    target_fps = math.min(target_fps, 144) // I had a bug on my monitor which is a very high refresh rate of 240. 144 Hz is pretty standard high, so we just set it to that.
     rl.SetTargetFPS(target_fps)
     rl.MaximizeWindow()
     rl.RestoreWindow()
@@ -694,15 +695,13 @@ main :: proc() {
                 new_popping_bubble := entity^
                 create_pop_ripple_from_circle([2]f32{new_popping_bubble.x, new_popping_bubble.y}, new_popping_bubble.width, new_popping_bubble.color)
 
-                splitter_rectangle_center_position := [2]f32{ splitter.x + splitter.width / 2, splitter.y + splitter.height / 2 }
-                vector_from_splitter_to_bubble_center := [2]f32{ entity.x - splitter_rectangle_center_position.x, entity.y - splitter_rectangle_center_position.y }
-
-                vector := la.normalize(vector_from_splitter_to_bubble_center)
+                vector := la.normalize(splitter.velocity)
                 velocity_factor :: 0.1
                 new_velocity := vector * velocity_factor
-                first_bubble_velocity_rotated_90_degrees := rl.Vector2Rotate(new_velocity, 0.6)
-                second_bubble_velocity_rotate_90_degrees := rl.Vector2Rotate(new_velocity, -0.6)
+                first_bubble_velocity_rotated_90_degrees := rl.Vector2Rotate(new_velocity, math.to_radians_f32(45))
+                second_bubble_velocity_rotated_90_degrees := rl.Vector2Rotate(new_velocity, math.to_radians_f32(-45))
                 entity.width /= 2
+
                 entity.velocity = first_bubble_velocity_rotated_90_degrees
 
                 new_bubble := Entity{
@@ -710,7 +709,7 @@ main :: proc() {
                     y = entity.y,
                     width = entity.width,
                     color = entity.color,
-                    velocity = second_bubble_velocity_rotate_90_degrees,
+                    velocity = second_bubble_velocity_rotated_90_degrees,
                 }
                 push_entity(new_bubble, .bubbles)
 
@@ -727,9 +726,8 @@ main :: proc() {
                 intersect := rl.CheckCollisionCircleRec(screen_bubble_pos, screen_bubble_radius, screen_grower_rectangle)
 
                 if !intersect do continue
-                grower_rectangle_center_position := [2]f32{ grower.x + grower.width / 2, grower.y + grower.height / 2 }
-                vector_from_grower_to_bubble_center := [2]f32{ entity.x - grower_rectangle_center_position.x, entity.y - grower_rectangle_center_position.y }
-                vector := la.normalize(vector_from_grower_to_bubble_center)
+
+                vector := la.normalize(grower.velocity)
                 velocity_factor :: 0.1
                 entity.velocity = vector * velocity_factor
                 entity.width *= 1.05
