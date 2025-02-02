@@ -83,37 +83,14 @@ levels_init :: proc() -> [NUM_LEVELS]Level {
             name = "level 1",
             entities = map[View_Id][dynamic]Entity{
                 .bubbles = [dynamic]Entity{
-                    Entity{
-                        x = 0.5,
-                        y = 0.1,
-                        width = 0.05,
-                        color = .red,
-                    },
+                    { x = 0.5, y = 0.1, width = 0.05, color = .red },
                 },
                 .obstacles = [dynamic]Entity{
-                    Entity{
-                        x = 0.3,
-                        y = 0.3,
-                        width = 0.1,
-                        height = 0.1,
-                        color = .black,
-                    },
+                    { x = 0.3, y = 0.3, width = 0.1, height = 0.1, color = .black },
                 },
                 .end_goals = [dynamic]Entity{
-                    Entity{
-                        x = 0.7,
-                        y = 0.1,
-                        width = 0.1,
-                        height = 0.1,
-                        color = .green,
-                    },
-                    Entity{
-                        x = 0.7,
-                        y = 0.3,
-                        width = 0.1,
-                        height = 0.1,
-                        color = .green,
-                    }
+                    { x = 0.7, y = 0.1, width = 0.1, height = 0.1, color = .green },
+                    { x = 0.7, y = 0.3, width = 0.1, height = 0.1, color = .green }
                 },
             },
             gun_initial_position = { 0.4, 0 },
@@ -122,30 +99,12 @@ levels_init :: proc() -> [NUM_LEVELS]Level {
             name = "level 2",
             entities = map[View_Id][dynamic]Entity{
                 .bubbles = [dynamic]Entity{
-                    Entity{
-                        x = 0.2,
-                        y = 0.3,
-                        width = 0.05,
-                        color = .red,
-                    },
-                },
+                    { x = 0.2, y = 0.3, width = 0.05, color = .red, } },
                 .obstacles = [dynamic]Entity{
-                    Entity{
-                        x = 0.3,
-                        y = 0.3,
-                        width = 0.1,
-                        height = 0.1,
-                        color = .black,
-                    },
+                    { x = 0.3, y = 0.3, width = 0.1, height = 0.1, color = .black },
                 },
                 .end_goals = [dynamic]Entity{
-                    Entity{
-                        x = 0.7,
-                        y = 0.1,
-                        width = 0.1,
-                        height = 0.1,
-                        color = .green,
-                    },
+                    { x = 0.7, y = 0.1, width = 0.1, height = 0.1, color = .green },
                 },
             },
             gun_initial_position = { 0, world_height * 0.7 },
@@ -873,6 +832,7 @@ main :: proc() {
             rl.DrawCircle(i32(screen_bubble_placement_circle.x), i32(screen_bubble_placement_circle.y), screen_bubble_placement_circle.z, auto_cast transparent_blue)
         }
 
+        // TODO(felix): this needs to be split up into a win case and a lose case
         { // draw game over text when all bubbles gone
             if len(views[.bubbles].indices) == 0 {
                 draw_text("Game Over", [2]f32{0.2, 0.2}, 0.1, .black)
