@@ -694,24 +694,12 @@ main :: proc() {
                 new_popping_bubble := entity^
                 create_pop_ripple_from_circle([2]f32{new_popping_bubble.x, new_popping_bubble.y}, new_popping_bubble.width, new_popping_bubble.color)
 
-                splitter_rectangle_center_position := [2]f32{ splitter.x + splitter.width / 2, splitter.y + splitter.height / 2 }
-                vector_from_splitter_to_bubble_center := [2]f32{ entity.x - splitter_rectangle_center_position.x, entity.y - splitter_rectangle_center_position.y }
-
-                vector := la.normalize(vector_from_splitter_to_bubble_center)
+                vector := la.normalize(splitter.velocity)
                 velocity_factor :: 0.1
                 new_velocity := vector * velocity_factor
-                first_bubble_velocity_rotated_90_degrees := rl.Vector2Rotate(new_velocity, 0.6)
-                second_bubble_velocity_rotated_90_degrees := rl.Vector2Rotate(new_velocity, -0.6)
+                first_bubble_velocity_rotated_90_degrees := rl.Vector2Rotate(new_velocity, math.to_radians_f32(45))
+                second_bubble_velocity_rotated_90_degrees := rl.Vector2Rotate(new_velocity, math.to_radians_f32(-45))
                 entity.width /= 2
-
-                prev_width := entity.width * 4
-                if prev_width <= splitter.width {
-                    speed := la.vector_length(first_bubble_velocity_rotated_90_degrees)
-                    first_bubble_velocity_rotated_90_degrees = la.normalize(math.lerp(first_bubble_velocity_rotated_90_degrees, splitter.velocity, [2]f32{ 0.5, 0.5 }))
-                    second_bubble_velocity_rotated_90_degrees = la.normalize(math.lerp(second_bubble_velocity_rotated_90_degrees, splitter.velocity, [2]f32{ 0.5, 0.5 }))
-                    first_bubble_velocity_rotated_90_degrees *= speed
-                    second_bubble_velocity_rotated_90_degrees *= speed
-                }
 
                 entity.velocity = first_bubble_velocity_rotated_90_degrees
 
@@ -737,19 +725,8 @@ main :: proc() {
                 intersect := rl.CheckCollisionCircleRec(screen_bubble_pos, screen_bubble_radius, screen_grower_rectangle)
 
                 if !intersect do continue
-                grower_rectangle_center_position := [2]f32{ grower.x + grower.width / 2, grower.y + grower.height / 2 }
 
-                vector: [2]f32
-                if entity.width <= grower.width {
-                    vector = la.normalize(grower.velocity)
-                } else {
-                    vector_from_grower_to_bubble_center := [2]f32{ entity.x - grower_rectangle_center_position.x, entity.y - grower_rectangle_center_position.y }
-                    push := la.normalize(vector_from_grower_to_bubble_center)
-                    normalised_grower_velocity := la.normalize(grower.velocity)
-
-                    vector = math.lerp(normalised_grower_velocity, push, [2]f32{ 0.5, 0.5 })
-                }
-
+                vector := la.normalize(grower.velocity)
                 velocity_factor :: 0.1
                 entity.velocity = vector * velocity_factor
                 entity.width *= 1.05
