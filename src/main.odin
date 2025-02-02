@@ -845,7 +845,7 @@ main :: proc() {
 
         // TODO(felix): lost is sometimes true after a win, and not true immediately after a loss
         lost := !won && len(views[.bubbles].indices) == 0
-        lost &&= level_transition_state_active
+        lost &&= !level_transition_state_active
         if lost {
             // TODO(felix): use transition system
             draw_text("Game Over", [2]f32{0.2, 0.2}, 0.1, .black)
