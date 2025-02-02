@@ -492,6 +492,9 @@ main :: proc() {
                         bubble_placement_circle.y = world_height / 2
                     }
 
+                    snap_to_horizontal_center := rl.IsKeyDown(.Y)
+                    if snap_to_horizontal_center do bubble_placement_circle.x = 0.5
+
                     vector_from_center_to_mouse := [2]f32{world_mouse_pos.x - bubble_placement_circle[0], world_mouse_pos.y - bubble_placement_circle[1]}
                     length := la.length(vector_from_center_to_mouse)
                     bubble_placement_circle[2] = length
