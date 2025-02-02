@@ -514,13 +514,12 @@ main :: proc() {
         }
 
         bubbles: for entity_id in views[.bubbles].indices { // update bubbles
-            entity := &entity_backing_memory[entity_id]
+            using entity := &entity_backing_memory[entity_id]
 
             for splitter_id in views[.splitters].indices {
                 splitter := &entity_backing_memory[splitter_id]
 
-                // TODO(felix): this check doesn't work sometimes, because the splitter moves too quickly
-                intersect := rl.CheckCollisionRecs(splitter.rect, entity.rect)
+                intersect := rl.CheckCollisionCircleRec({ x, y }, width, splitter.rect)
 
                 if !intersect do continue
 
@@ -549,8 +548,8 @@ main :: proc() {
             for grower_id in views[.growers].indices {
                 grower := &entity_backing_memory[grower_id]
 
-                // TODO(felix): same problem as above, with the splitters
-                intersect := rl.CheckCollisionRecs(grower.rect, entity.rect)
+                intersect := rl.CheckCollisionCircleRec({ x, y }, width, grower.rect)
+                
                 if intersect {
                     vector := la.normalize(grower.velocity)
                     velocity_factor :: 0.1
@@ -559,8 +558,6 @@ main :: proc() {
                 }
             }
 
-            // NOTE(felix): I have no idea why this still pops the bubbles when their centre, not their circumference, touches the screen edge
-            using entity
             colliding_screen_edge_horizontal := x - width <= 0 || 1 <= x + width
             colliding_screen_edge_vertical := y - width <= 0 || world_height <= y + width
             if colliding_screen_edge_horizontal || colliding_screen_edge_vertical {
