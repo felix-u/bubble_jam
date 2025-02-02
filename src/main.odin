@@ -338,7 +338,8 @@ main :: proc() {
     rl.InitWindow(auto_cast screen_width, auto_cast screen_height, game_name)
     defer rl.CloseWindow()
 
-    rl.SetTargetFPS(rl.GetMonitorRefreshRate(rl.GetCurrentMonitor()))
+    target_fps := rl.GetMonitorRefreshRate(rl.GetCurrentMonitor())
+    rl.SetTargetFPS(target_fps)
     rl.MaximizeWindow()
 
     gun_width :: 0.02
@@ -362,7 +363,7 @@ main :: proc() {
 
     for !rl.WindowShouldClose() {
         if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.B) {
-            // TODO(felix): cap delta time here
+            delta_time = 1 / cast(f32) target_fps
             breakpoint()
         }
 
@@ -523,10 +524,9 @@ main :: proc() {
                 intersect := rl.CheckCollisionRecs(splitter.rect, entity.rect)
                 if !intersect do continue
 
-                // TODO(felix): This is also wrong, and currently produces random-seeming results.
-                //              I think this vector needs to be the normalised vector of the splitter's velocity
-                vector_from_click_to_bubble := [2]f32{entity.x - world_mouse_pos.x, entity.y - world_mouse_pos.y}
-                new_velocity := vector_from_click_to_bubble * 2
+                vector := la.normalize(splitter.velocity)
+                velocity_factor :: 0.1
+                new_velocity := vector * velocity_factor
                 first_bubble_velocity_rotated_90_degrees := rl.Vector2Rotate(new_velocity, 0.6)
                 second_bubble_velocity_rotate_90_degrees := rl.Vector2Rotate(new_velocity, -0.6)
                 entity.radius /= 2
@@ -553,9 +553,10 @@ main :: proc() {
                 intersect := rl.CheckCollisionRecs(grower.rect, entity.rect)
                 if intersect {
                     // TODO(felix): ditto
-                    vector_from_click_to_bubble := [2]f32{world_mouse_pos.x - entity.x, world_mouse_pos.y - entity.y}
-                    vector_from_bubble_to_click := [2]f32{-vector_from_click_to_bubble.x, -vector_from_click_to_bubble.y}
-                    entity.velocity = vector_from_bubble_to_click * 2
+
+                    vector := la.normalize(grower.velocity)
+                    velocity_factor :: 0.1
+                    entity.velocity = vector * velocity_factor
                     entity.radius *= 1.05
                 }
             }
