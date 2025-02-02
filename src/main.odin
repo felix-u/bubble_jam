@@ -310,6 +310,9 @@ snap_rectangle_to_grid :: proc(r: rl.Rectangle) -> rl.Rectangle {
     return ret
 }
 
+save_screen_flash_time_amount : f32 = 0.5
+save_screen_flash_timer := f32(0)
+
 main :: proc() {
     when ODIN_DEBUG { 	// memory leak tracking
 		track: mem.Tracking_Allocator
@@ -403,7 +406,13 @@ main :: proc() {
 
         rl.BeginDrawing()
         defer rl.EndDrawing()
+
         rl.ClearBackground(auto_cast colors[.light_grey])
+
+        if save_screen_flash_timer > 0 {
+            save_screen_flash_timer -= delta_time
+            rl.ClearBackground(auto_cast colors[.green])
+        }
 
         screen_factors_update_frame_local()
         mouse_pos := rl.GetMousePosition()
@@ -430,6 +439,15 @@ main :: proc() {
                     vector_from_center_to_mouse := [2]f32{world_mouse_pos.x - bubble_placement_circle[0], world_mouse_pos.y - bubble_placement_circle[1]}
                     length := la.length(vector_from_center_to_mouse)
                     bubble_placement_circle[2] = length
+                }
+                if rl.IsMouseButtonPressed(.RIGHT) {
+                    for bubble_id in views[.bubbles].indices {
+                        bubble := entity_backing_memory[bubble_id]
+                        did_mouse_circle_intersect := rl.CheckCollisionPointCircle(world_mouse_pos, [2]f32{bubble.x, bubble.y}, bubble.width)
+                        if did_mouse_circle_intersect {
+                            remove_entity(bubble_id, .bubbles)
+                        }
+                    }
                 }
             }
             case .obstacle:
@@ -504,6 +522,20 @@ main :: proc() {
             case .none: {}
             }
 
+            if rl.IsKeyPressed(.F8) { // save to levels
+                for view_id, &entity_dynamic_array in levels[curr_level_index].entities {
+                    non_zero_resize(&entity_dynamic_array, 0)
+                    for entity_id in views[view_id].indices {
+                        entity := entity_backing_memory[entity_id]
+                        append_elem(&entity_dynamic_array, entity)
+                    }
+                }
+                save_screen_flash_timer = save_screen_flash_time_amount
+            }
+
+            if rl.IsKeyPressed(.F9) { // reset current level
+                reset_entities_from_level()
+            }
             
 
             { // level switching
@@ -747,14 +779,16 @@ main :: proc() {
             rl.DrawCircleV(screen_pos, screen_radius, auto_cast colors[bubble.color])
         }
 
-        {
-            edit_mode_text := entity_edit_mode_name_map[current_entity_edit_mode]
-            draw_text(edit_mode_text, [2]f32{0.01, 0.01}, 0.02, .black)
-        }
-
-        { // draw placement rectangle
+        { // draw ed stuff
             obstacle_placement_rectangle := absolute_normalized_rectangle(obstacle_placement_unnormalized_rectangle)
             rl.DrawRectangleRec(screen_from_world(obstacle_placement_rectangle), auto_cast colors[.black])
+
+            edit_mode_text := entity_edit_mode_name_map[current_entity_edit_mode]
+            draw_text(edit_mode_text, [2]f32{0.01, 0.01}, 0.02, .black)
+
+            screen_bubble_placement_circle := screen_from_world(bubble_placement_circle)
+            transparent_blue := rl.Color{ 0, 0, 255, 100 }
+            rl.DrawCircle(i32(screen_bubble_placement_circle.x), i32(screen_bubble_placement_circle.y), screen_bubble_placement_circle.z, auto_cast transparent_blue)
         }
 
         { // draw debug visualizer
