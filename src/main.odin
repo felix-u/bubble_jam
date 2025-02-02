@@ -436,10 +436,12 @@ main :: proc() {
         world_mouse_pos := world_from_screen(mouse_pos)
 
         @static level_transition_state: struct {
-            old_level_index, new_level_index: int,
-            curtain: rl.Rectangle,
-            curtain_color: Color,
-            render_curtain: bool,
+            using non_text_related: struct {
+                old_level_index, new_level_index: int,
+                curtain: rl.Rectangle,
+                curtain_color: Color,
+                render_curtain: bool,
+            },
             text: cstring,
             opacity: int,
             text_fading: enum { in_, out },
@@ -895,15 +897,7 @@ main :: proc() {
 
                 old_curtain_x := curtain.x
                 if (curtain.x >= 1) {
-                    text_backup := text
-                    opacity_backup := opacity
-
-                    level_transition_state = {}
-
-                    text = text_backup
-                    opacity = opacity_backup
-                    text_still_fading = true
-
+                    level_transition_state.non_text_related = {}
                     break handle_curtain
                 }
 
