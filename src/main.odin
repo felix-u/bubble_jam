@@ -7,6 +7,8 @@ import "core:math"
 import "core:mem"
 import la "core:math/linalg"
 import "core:fmt"
+import "core:encoding/json"
+import "core:os"
 
 breakpoint :: intrinsics.debug_trap
 
@@ -58,92 +60,210 @@ View_Id :: enum {
     end_goals_completed,
 }
 
+View_Id_Entities_Map :: struct {
+    view_id: View_Id,
+    entities: [ENTITY_CAP]Entity,
+}
+
 Level :: struct {
     name: string,
-    entities: map[View_Id][dynamic]Entity
+    view_id_entities_map: [len(View_Id)]View_Id_Entities_Map,
 }
 
 curr_level_index := 0
 NUM_LEVELS :: 2
 
 levels_init :: proc() -> [NUM_LEVELS]Level {
-    levels := [NUM_LEVELS]Level{
-        {
-            name = "level 1",
-            entities = map[View_Id][dynamic]Entity{
-                .bubbles = [dynamic]Entity{
-                    Entity{
-                        x = 0.5,
-                        y = 0.1,
-                        width = 0.05,
-                        color = .red,
-                    },
-                },
-                .obstacles = [dynamic]Entity{
-                    Entity{
-                        x = 0.3,
-                        y = 0.3,
-                        width = 0.1,
-                        height = 0.1,
-                        color = .black,
-                    },
-                },
-                .end_goals = [dynamic]Entity{
-                    Entity{
-                        x = 0.7,
-                        y = 0.1,
-                        width = 0.1,
-                        height = 0.1,
-                        color = .green,
-                    },
-                    Entity{
-                        x = 0.7,
-                        y = 0.3,
-                        width = 0.1,
-                        height = 0.1,
-                        color = .green,
-                    }
-                },
-            },
-        },
-        {
-            name = "level 2",
-            entities = map[View_Id][dynamic]Entity{
-                .bubbles = [dynamic]Entity{
-                    Entity{
-                        x = 0.2,
-                        y = 0.3,
-                        width = 0.05,
-                        color = .red,
-                    },
-                },
-                .obstacles = [dynamic]Entity{
-                    Entity{
-                        x = 0.3,
-                        y = 0.3,
-                        width = 0.1,
-                        height = 0.1,
-                        color = .black,
-                    },
-                },
-                .end_goals = [dynamic]Entity{
-                    Entity{
-                        x = 0.7,
-                        y = 0.1,
-                        width = 0.1,
-                        height = 0.1,
-                        color = .green,
-                    },
-                },
-            },
-        },
+    levels :[NUM_LEVELS]Level
+    // for i := 0; i < NUM_LEVELS; i+=1 {
+    //     for j := 0; j < len(View_Id); j+=1 {
+    //         levels[i].view_id_entities_map[j].view_id = View_Id(j)
+    //         levels[i].view_id_entities_map[j].entities = [dynamic]Entity{}
+    //     }
 
-    }
+    // }
+    // levels := [NUM_LEVELS]Level{
+    //     {
+    //         name = "level 1",
+    //         view_id_entities_map = [len(View_Id)]View_Id_Entities_Map{
+    //             {
+    //                 view_id =  View_Id.bubbles,
+    //                 entities = [dynamic]Entity{
+    //                     Entity{
+    //                         x = 0.5,
+    //                         y = 0.1,
+    //                         width = 0.05,
+    //                         color = .red,
+    //                     },
+    //                 },
+    //             },
+    //             {
+    //                 view_id =  View_Id.obstacles,
+    //                 entities = [dynamic]Entity{
+    //                     Entity{
+    //                         x = 0.3,
+    //                         y = 0.3,
+    //                         width = 0.1,
+    //                         height = 0.1,
+    //                         color = .black,
+    //                     },
+    //                 },
+    //             },
+    //             {
+    //                 view_id =  View_Id.end_goals,
+    //                 entities = [dynamic]Entity{
+    //                     Entity{
+    //                         x = 0.7,
+    //                         y = 0.1,
+    //                         width = 0.1,
+    //                         height = 0.1,
+    //                         color = .green,
+    //                     },
+    //                     Entity{
+    //                         x = 0.7,
+    //                         y = 0.3,
+    //                         width = 0.1,
+    //                         height = 0.1,
+    //                         color = .green,
+    //                     }
+    //                 },
+    //             },
+    //             {
+    //                 view_id = View_Id.popping_bubbles,
+    //                 entities = [dynamic]Entity{},
+    //             },
+    //             {
+    //                 view_id = View_Id.growers,
+    //                 entities = [dynamic]Entity{},
+    //             },
+    //             {
+    //                 view_id = View_Id.splitters,
+    //                 entities = [dynamic]Entity{},
+    //             },
+    //             {
+    //                 view_id = View_Id.guns,
+    //                 entities = [dynamic]Entity{},
+    //             },
+    //             {
+    //                 view_id = View_Id.active,
+    //                 entities = [dynamic]Entity{},
+    //             },
+    //             {
+    //                 view_id = View_Id.end_goals_completed,
+    //                 entities = [dynamic]Entity{},
+    //             },
+    //             {
+    //                 view_id = View_Id.freelist,
+    //                 entities = [dynamic]Entity{},
+    //             },
+    //         },
+    //     },
+    //     {
+    //         name = "level 2",
+    //         view_id_entities_map = [len(View_Id)]View_Id_Entities_Map{
+    //             {
+    //                 view_id =  View_Id.bubbles,
+    //                 entities = [dynamic]Entity{
+    //                     Entity{
+    //                         x = 0.2,
+    //                         y = 0.3,
+    //                         width = 0.05,
+    //                         color = .red,
+    //                     },
+    //                 },
+    //             },
+    //             {
+    //                 view_id =  View_Id.obstacles,
+    //                 entities = [dynamic]Entity{
+    //                     Entity{
+    //                         x = 0.3,
+    //                         y = 0.3,
+    //                         width = 0.1,
+    //                         height = 0.1,
+    //                         color = .black,
+    //                     },
+    //                 },
+    //             },
+    //             {
+    //                 view_id =  View_Id.end_goals,
+    //                 entities = [dynamic]Entity{
+    //                     Entity{
+    //                         x = 0.7,
+    //                         y = 0.1,
+    //                         width = 0.1,
+    //                         height = 0.1,
+    //                         color = .green,
+    //                     },
+    //                 },
+    //             },
+    //             {
+    //                 view_id = View_Id.popping_bubbles,
+    //                 entities = [dynamic]Entity{},
+    //             },
+    //             {
+    //                 view_id = View_Id.growers,
+    //                 entities = [dynamic]Entity{},
+    //             },
+    //             {
+    //                 view_id = View_Id.splitters,
+    //                 entities = [dynamic]Entity{},
+    //             },
+    //             {
+    //                 view_id = View_Id.guns,
+    //                 entities = [dynamic]Entity{},
+    //             },
+    //             {
+    //                 view_id = View_Id.active,
+    //                 entities = [dynamic]Entity{},
+    //             },
+    //             {
+    //                 view_id = View_Id.end_goals_completed,
+    //                 entities = [dynamic]Entity{},
+    //             },
+    //             {
+    //                 view_id = View_Id.freelist,
+    //                 entities = [dynamic]Entity{},
+    //             },
+    //         },
+    //     },
+
+    // }
     return levels
 }
-levels := levels_init()
+levels : [NUM_LEVELS]Level
 
+write_levels_to_json_file :: proc() {
+    json_opts := json.Marshal_Options{pretty=true,}
+    json_data, err := json.marshal(levels, opt = json_opts, allocator = context.temp_allocator)
+    if err != nil {
+        fmt.eprintf("error marshalling json: %v\n", err)
+        return
+    }
+    file_name := "data.json"
+    ok := os.write_entire_file(file_name, json_data)
+    if !ok {
+        fmt.eprintf("error writing to file: %v\n", file_name)
+        return
+    }
+}
 
+read_levels_from_json_file :: proc() {
+    // for view_id_entity_map in levels[curr_level_index].view_id_entities_map {
+    //     non_zero_resize(&view_id_entity_map.entities)
+    // }
+
+    file_name := "data.json"
+    json_data, ok := os.read_entire_file(file_name)
+    if !ok {
+        fmt.eprintf("error reading from file: %v\n", file_name)
+        return
+    }
+    err := json.unmarshal(json_data, &levels)
+    if err != nil {
+        fmt.eprintf("error unmarshalling json: %v\n", err)
+        return
+    }
+}
 
 reset_entities_from_level :: proc() {
     for view_id in View_Id {
@@ -158,7 +278,9 @@ reset_entities_from_level :: proc() {
 
     for i in 1 ..< ENTITY_CAP do append_elem(&views[.freelist].indices, cast(Entity_Index) i)
 
-    for view_id, entities in levels[curr_level_index].entities {
+    for view_id_entity_map in levels[curr_level_index].view_id_entities_map {
+        entities := view_id_entity_map.entities
+        view_id := view_id_entity_map.view_id
         for entity in entities {
             push_entity(entity, view_id)
         }
@@ -234,7 +356,7 @@ remove_entity :: proc(entity_id: Entity_Index, view_ids: ..View_Id, free: bool =
     }
 }
 
-screen_size := [2]f32{ 960, 540 }
+screen_size := [2]f32{ 1200, 675 }
 screen_from_world_scalar: f32
 screen_margin_y: f32
 dpi: f32 = 1
@@ -329,6 +451,51 @@ create_pop_ripple_from_circle :: proc(pos: [2]f32, radius: f32, color: Color) {
     push_entity(new_popping_bubble, .popping_bubbles)
 }
 
+editor_handle_input_for_placement_rectangle_and_rectangular_entity_creation  :: proc(view_id: View_Id, world_mouse_pos: [2]f32, color_for_creation: Color = .black)
+{
+    if rl.IsMouseButtonReleased(.LEFT) && placement_unnormalized_rectangle.width != 0 && placement_unnormalized_rectangle.height != 0 {
+        obstacle_rectangle := absolute_normalized_rectangle(placement_unnormalized_rectangle)
+        if obstacle_rectangle.width < cell_size {
+            obstacle_rectangle.width = cell_size
+        }
+        if obstacle_rectangle.height < cell_size {
+            obstacle_rectangle.height = cell_size
+        }
+        snap_adjusted_obstacle_rectangle := snap_rectangle_to_grid(obstacle_rectangle)
+        obstacle_entity := Entity{
+            x = snap_adjusted_obstacle_rectangle.x,
+            y = snap_adjusted_obstacle_rectangle.y,
+            width = snap_adjusted_obstacle_rectangle.width,
+            height = snap_adjusted_obstacle_rectangle.height,
+            color = color_for_creation
+        }
+        push_entity(obstacle_entity, .obstacles)
+        placement_unnormalized_rectangle = rl.Rectangle{0,0,0,0}
+    }
+    else if rl.IsMouseButtonPressed(.LEFT) {
+        using placement_unnormalized_rectangle
+        x = world_mouse_pos.x
+        y = world_mouse_pos.y
+
+    } else if rl.IsMouseButtonDown(.LEFT) {
+        using placement_unnormalized_rectangle
+        if x != 0 && y != 0 {
+            width = world_mouse_pos.x - x
+            height = world_mouse_pos.y - y
+        }
+    }
+    else if rl.IsMouseButtonPressed(.RIGHT) {
+        for entity_id in views[view_id].indices {
+            entity := entity_backing_memory[entity_id]
+            did_mouse_rectangle_intersect := rl.CheckCollisionPointRec(world_mouse_pos, entity.rect)
+
+            if did_mouse_rectangle_intersect {
+                remove_entity(entity_id, view_id)
+            }
+        }
+    }
+}
+
 main :: proc() {
     when ODIN_DEBUG { 	// memory leak tracking
 		track: mem.Tracking_Allocator
@@ -379,6 +546,7 @@ main :: proc() {
 			mem.tracking_allocator_destroy(&temp_track)
 		}
 	}
+    read_levels_from_json_file()
 
     for i in 1 ..< ENTITY_CAP do append_elem(&views[.freelist].indices, cast(Entity_Index) i)
 
@@ -391,9 +559,10 @@ main :: proc() {
     target_fps := rl.GetMonitorRefreshRate(rl.GetCurrentMonitor())
     rl.SetTargetFPS(target_fps)
     rl.MaximizeWindow()
+    rl.RestoreWindow()
 
-    gun_width :: 0.02
-    gun_initial_state :: Entity{
+    gun_width := cell_size
+    gun_initial_state := Entity{
         x = 0.5 - gun_width / 2,
         y = 0,
         width = gun_width,
@@ -434,6 +603,8 @@ main :: proc() {
         mouse_pos := rl.GetMousePosition()
         world_mouse_pos := world_from_screen(mouse_pos)
 
+        gun := &entity_backing_memory[gun_id]
+
         { // ed
             switch current_entity_edit_mode {
             case .bubble:
@@ -466,114 +637,29 @@ main :: proc() {
                     }
                 }
             }
-            case .obstacle:
-            {
-                if rl.IsMouseButtonReleased(.LEFT) && placement_unnormalized_rectangle.width != 0 && placement_unnormalized_rectangle.height != 0 {
-
-                    obstacle_rectangle := absolute_normalized_rectangle(placement_unnormalized_rectangle)
-                    if obstacle_rectangle.width < cell_size {
-                        obstacle_rectangle.width = cell_size
-                    }
-                    if obstacle_rectangle.height < cell_size {
-                        obstacle_rectangle.height = cell_size
-                    }
-                    snap_adjusted_obstacle_rectangle := snap_rectangle_to_grid(obstacle_rectangle)
-                    obstacle_entity := Entity{
-                        x = snap_adjusted_obstacle_rectangle.x,
-                        y = snap_adjusted_obstacle_rectangle.y,
-                        width = snap_adjusted_obstacle_rectangle.width,
-                        height = snap_adjusted_obstacle_rectangle.height,
-                        color = .black,
-                    }
-                    push_entity(obstacle_entity, .obstacles)
-                    placement_unnormalized_rectangle = rl.Rectangle{0,0,0,0}
-                }
-                else if rl.IsMouseButtonPressed(.LEFT) {
-                    using placement_unnormalized_rectangle
-                    x = world_mouse_pos.x
-                    y = world_mouse_pos.y
-
-                } else if rl.IsMouseButtonDown(.LEFT) {
-                    using placement_unnormalized_rectangle
-                    if x != 0 && y != 0 {
-                        width = world_mouse_pos.x - x
-                        height = world_mouse_pos.y - y
-                    }
-                }
-                else if rl.IsMouseButtonPressed(.RIGHT) {
-                    // delete any colliding obstacles
-                    for entity_id in views[.obstacles].indices {
-                        entity := entity_backing_memory[entity_id]
-                        did_mouse_rectangle_intersect := rl.CheckCollisionPointRec(world_mouse_pos, entity.rect)
-
-                        if did_mouse_rectangle_intersect {
-                            remove_entity(entity_id, .obstacles)
-                        }
-                    }
-                }
-            }
-            case .end_goal:
-            {
-                if rl.IsMouseButtonReleased(.LEFT) && placement_unnormalized_rectangle.width != 0 && placement_unnormalized_rectangle.height != 0 {
-
-                    obstacle_rectangle := absolute_normalized_rectangle(placement_unnormalized_rectangle)
-                    if obstacle_rectangle.width < cell_size {
-                        obstacle_rectangle.width = cell_size
-                    }
-                    if obstacle_rectangle.height < cell_size {
-                        obstacle_rectangle.height = cell_size
-                    }
-                    snap_adjusted_obstacle_rectangle := snap_rectangle_to_grid(obstacle_rectangle)
-                    obstacle_entity := Entity{
-                        x = snap_adjusted_obstacle_rectangle.x,
-                        y = snap_adjusted_obstacle_rectangle.y,
-                        width = snap_adjusted_obstacle_rectangle.width,
-                        height = snap_adjusted_obstacle_rectangle.height,
-                        color = .green,
-                    }
-                    push_entity(obstacle_entity, .obstacles)
-                    placement_unnormalized_rectangle = rl.Rectangle{0,0,0,0}
-                }
-                else if rl.IsMouseButtonPressed(.LEFT) {
-                    using placement_unnormalized_rectangle
-                    x = world_mouse_pos.x
-                    y = world_mouse_pos.y
-
-                } else if rl.IsMouseButtonDown(.LEFT) {
-                    using placement_unnormalized_rectangle
-                    if x != 0 && y != 0 {
-                        width = world_mouse_pos.x - x
-                        height = world_mouse_pos.y - y
-                    }
-                }
-                else if rl.IsMouseButtonPressed(.RIGHT) {
-                    // delete any colliding obstacles
-                    for entity_id in views[.obstacles].indices {
-                        entity := entity_backing_memory[entity_id]
-                        did_mouse_rectangle_intersect := rl.CheckCollisionPointRec(world_mouse_pos, entity.rect)
-
-                        if did_mouse_rectangle_intersect {
-                            remove_entity(entity_id, .obstacles)
-                        }
-                    }
-                }
-            }
+            case .obstacle: editor_handle_input_for_placement_rectangle_and_rectangular_entity_creation(.obstacles, world_mouse_pos)
+            case .end_goal: editor_handle_input_for_placement_rectangle_and_rectangular_entity_creation(.end_goals, world_mouse_pos, .green)
             case .none: {}
             }
 
             if rl.IsKeyPressed(.F8) { // save to levels
-                for view_id, &entity_dynamic_array in levels[curr_level_index].entities {
+                for view_id_entity_map in levels[curr_level_index].view_id_entities_map {
+                    view_id := view_id_entity_map.view_id
+                    entity_dynamic_array := view_id_entity_map.entities
                     non_zero_resize(&entity_dynamic_array, 0)
                     for entity_id in views[view_id].indices {
                         entity := entity_backing_memory[entity_id]
                         append_elem(&entity_dynamic_array, entity)
                     }
+                    write_levels_to_json_file()
                 }
                 save_screen_flash_timer = save_screen_flash_time_amount
             }
 
             if rl.IsKeyPressed(.F9) { // reset current level
+                read_levels_from_json_file()
                 reset_entities_from_level()
+                gun_id = push_entity(gun_initial_state, .guns)
             }
 
 
@@ -584,10 +670,13 @@ main :: proc() {
                 if input_level_one_requested {
                     curr_level_index = 0
                     reset_entities_from_level()
+                    gun_id = push_entity(gun_initial_state, .guns)
+
                 }
                 if input_level_two_requested {
                     curr_level_index = 1
                     reset_entities_from_level()
+                    gun_id = push_entity(gun_initial_state, .guns)
                 }
             }
 
@@ -598,9 +687,7 @@ main :: proc() {
             }
         }
 
-        gun := &entity_backing_memory[gun_id]
-
-        gun_move_speed_factor :: 0.7
+        gun_move_speed_factor :: 0.9
         gun_move_speed := delta_time * gun_move_speed_factor
 
         max_x :: proc(entity: ^Entity) -> f32 { return 1 - entity.width }
@@ -754,7 +841,6 @@ main :: proc() {
                 if did_bubble_collide_with_obstacle {
                     new_popping_bubble := entity^
                     create_pop_ripple_from_circle([2]f32{new_popping_bubble.x, new_popping_bubble.y}, new_popping_bubble.width, new_popping_bubble.color)
-                
                     remove_entity(bubble_id, .bubbles, free = true)
 
                     entity.pop_anim_time_amount = 0.25
@@ -848,10 +934,11 @@ main :: proc() {
         }
 
         { // go to next level with wrap if all end_goals are gone
-            if len(views[.end_goals].indices) == 0 {
-                curr_level_index = (curr_level_index + 1) % NUM_LEVELS
-                reset_entities_from_level()
-            }
+            // if len(views[.end_goals].indices) == 0 {
+            //     curr_level_index = (curr_level_index + 1) % NUM_LEVELS
+            //     reset_entities_from_level()
+            //     gun_id = push_entity(gun_initial_state, .guns)
+            // }
         }
 
         { // draw debug visualizer
@@ -878,6 +965,8 @@ main :: proc() {
         bottom_boundary_start := screen_from_world([2]f32{ 0, world_height + thickness_world })
         bottom_boundary_end := screen_from_world([2]f32{ 1, world_height + thickness_world })
         rl.DrawLineEx(bottom_boundary_start, bottom_boundary_end, thickness * 2, boundary_color)
+
+        free_all(context.temp_allocator)
     }
 }
 
