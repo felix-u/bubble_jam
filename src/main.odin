@@ -206,8 +206,7 @@ remove_entity :: proc(entity_id: Entity_Index, view_ids: ..View_Id, free: bool =
 
     for view_id in view_ids {
         view := &views[view_id]
-        index, found := slice.linear_search(view.indices[:], entity_id)
-        assert(found)
+        index, _ := slice.linear_search(view.indices[:], entity_id)
         unordered_remove(&view.indices, index)
     }
 }
