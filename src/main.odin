@@ -61,10 +61,11 @@ View_Id :: enum {
 
 Level :: struct {
     name: cstring,
-    entities: map[View_Id][dynamic]Entity
+    entities: map[View_Id][dynamic]Entity,
+    gun_id: Entity_Index,
 }
 
-curr_level_index := 0
+current_level_index := 0
 NUM_LEVELS :: 2
 
 levels_init :: proc() -> [NUM_LEVELS]Level {
@@ -159,11 +160,21 @@ reset_entities_from_level :: proc() {
 
     for i in 1 ..< ENTITY_CAP do append_elem(&views[.freelist].indices, cast(Entity_Index) i)
 
-    for view_id, entities in levels[curr_level_index].entities {
+    for view_id, entities in levels[current_level_index].entities {
         for entity in entities {
             push_entity(entity, view_id)
         }
     }
+
+    gun_width :: 0.02
+    gun_initial_state :: Entity{
+        x = 0.5 - gun_width / 2,
+        y = 0,
+        width = gun_width,
+        height = gun_width,
+        color = .purple,
+    }
+    levels[current_level_index].gun_id = push_entity(gun_initial_state, .guns)
 }
 
 Entity_Edit_Mode :: enum {
@@ -393,16 +404,6 @@ main :: proc() {
     rl.SetTargetFPS(target_fps)
     rl.MaximizeWindow()
 
-    gun_width :: 0.02
-    gun_initial_state :: Entity{
-        x = 0.5 - gun_width / 2,
-        y = 0,
-        width = gun_width,
-        height = gun_width,
-        color = .purple,
-    }
-    gun_id := push_entity(gun_initial_state, .guns)
-
     initial_bubble_radius :: 0.05
     bubble_initial_state := Entity{
         x = 0.5,
@@ -576,7 +577,7 @@ main :: proc() {
             }
 
             if rl.IsKeyPressed(.F8) { // save to levels
-                for view_id, &entity_dynamic_array in levels[curr_level_index].entities {
+                for view_id, &entity_dynamic_array in levels[current_level_index].entities {
                     non_zero_resize(&entity_dynamic_array, 0)
                     for entity_id in views[view_id].indices {
                         entity := entity_backing_memory[entity_id]
@@ -603,7 +604,7 @@ main :: proc() {
                 selected_level_index := level_number - 1
 
                 level_transition_state = {
-                    old_level_index = curr_level_index,
+                    old_level_index = current_level_index,
                     new_level_index = selected_level_index,
                     curtain = { x = -1, width = 1, height = world_height },
                     curtain_color = .blue,
@@ -619,7 +620,8 @@ main :: proc() {
             }
         }
 
-        gun := &entity_backing_memory[gun_id]
+        level := &levels[current_level_index]
+        gun := &entity_backing_memory[level.gun_id]
 
         gun_move_speed_factor :: 0.7
         gun_move_speed := delta_time * gun_move_speed_factor
@@ -870,7 +872,7 @@ main :: proc() {
 
         { // go to next level with wrap if all end_goals are gone
             if len(views[.end_goals].indices) == 0 {
-                curr_level_index = (curr_level_index + 1) % NUM_LEVELS
+                current_level_index = (current_level_index + 1) % NUM_LEVELS
                 reset_entities_from_level()
             }
         }
@@ -904,13 +906,12 @@ main :: proc() {
                 curtain.x += level_transition_speed * delta_time
 
                 if old_curtain_x < 0 && 0 <= curtain.x {
-                    curr_level_index = new_level_index
+                    current_level_index = new_level_index
                     reset_entities_from_level()
                 }
             }
 
             if render_curtain {
-                using level_transition_state
                 rl.DrawRectangleRec(screen_from_world(curtain), auto_cast colors[curtain_color])
             }
 
@@ -924,13 +925,13 @@ main :: proc() {
                     screen_from_world(cast(f32) 0.5) - text_width_screen / 2,
                     screen_from_world(world_height / 2) - font_size / 2
                 }
-                color := colors[.white]
-                color.a = auto_cast opacity
+                rectangle_color := colors[.white]
+                rectangle_color.a = auto_cast opacity
 
-                rectangle_color := colors[.dark_blue]
-                rectangle_color.a = color.a
-                rl.DrawRectangleRec({ x = text_position.x - font_size / 4, y = text_position.y, width = text_width_screen, height = font_size }, auto_cast color)
-                rl.DrawTextEx(rl.GetFontDefault(), text, text_position, font_size, 1, auto_cast rectangle_color)
+                text_color := colors[.dark_blue]
+                text_color.a = rectangle_color.a
+                rl.DrawRectangleRec({ x = text_position.x - font_size / 4, y = text_position.y, width = text_width_screen, height = font_size }, auto_cast rectangle_color)
+                rl.DrawTextEx(rl.GetFontDefault(), text, text_position, font_size, 1, auto_cast text_color)
 
                 if text_fading == .in_ && opacity == 255 do text_fading = .out
                 else if text_fading == .out && opacity == 0 do text_still_fading = false
