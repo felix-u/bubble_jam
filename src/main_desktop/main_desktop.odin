@@ -5,6 +5,7 @@ import "core:os"
 import "core:path/filepath"
 import game ".."
 
+
 main :: proc() {
 	// Set working dir to dir of executable.
 	exe_path := os.args[0]
