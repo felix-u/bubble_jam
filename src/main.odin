@@ -925,15 +925,14 @@ update :: proc() {
         }
     }
 
-    boundary_color := rl.Color{ 255, 0, 0, 150 }
-    thickness_world :: 0.01
+    boundary_color := rl.Color{ 180, 180, 180, 255 }
+
+    thickness_world :: world_height * 2
     thickness := screen_from_world(cast(f32) thickness_world)
 
     top_boundary_start := screen_from_world([2]f32{ 0, -thickness_world })
     top_boundary_end := screen_from_world([2]f32{ 1, -thickness_world })
     rl.DrawLineEx(top_boundary_start, top_boundary_end, thickness * 2, boundary_color)
-
-    boundary_color.g = 100
 
     bottom_boundary_start := screen_from_world([2]f32{ 0, world_height + thickness_world })
     bottom_boundary_end := screen_from_world([2]f32{ 1, world_height + thickness_world })
@@ -976,7 +975,7 @@ shutdown :: proc() {
     rl.CloseAudioDevice()
 	rl.CloseWindow()
 }
- 
+
 
 should_run :: proc() -> bool {
 	when ODIN_OS != .JS {
