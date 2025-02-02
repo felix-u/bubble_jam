@@ -468,6 +468,7 @@ main :: proc() {
     defer rl.CloseWindow()
 
     target_fps := rl.GetMonitorRefreshRate(rl.GetCurrentMonitor())
+    target_fps = math.min(target_fps, 144) // I had a bug on my monitor which is a very high refresh rate of 240. 144 Hz is pretty standard high, so we just set it to that.
     rl.SetTargetFPS(target_fps)
     rl.MaximizeWindow()
     rl.RestoreWindow()
