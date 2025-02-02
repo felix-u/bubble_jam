@@ -595,9 +595,7 @@ main :: proc() {
         for bubble_id in views[.bubbles].indices { // "pop" bubbles if they touch an obstacle or get too small
             entity := &entity_backing_memory[bubble_id]
             if entity.radius < 0.003 { // too small
-                // NOTE(felix): I tried using remove_entity() here but got weird behaviour which could have been a miscompilation
-                index, found := slice.linear_search(views[.bubbles].indices[:], bubble_id)
-                if found do unordered_remove(&views[.bubbles].indices, index)
+                remove_entity(bubble_id, .bubbles, free = false)
 
                 entity.pop_anim_time_amount = 0.25
                 entity.pop_anim_timer = entity.pop_anim_time_amount
@@ -631,14 +629,14 @@ main :: proc() {
 
                 did_bubble_collide_with_end_goal := rl.CheckCollisionCircleRec([2]f32{screen_bubble_pos.x, screen_bubble_pos.y}, screen_bubble_radius, screen_end_goal_rectangle)
                 if did_bubble_collide_with_end_goal {
-                    index, found := slice.linear_search(views[.bubbles].indices[:], bubble_id)
-                    if found do unordered_remove(&views[.bubbles].indices, index)
+                    remove_entity(bubble_id, .bubbles, free = false)
 
                     entity.pop_anim_time_amount = 0.25
                     entity.pop_anim_timer = entity.pop_anim_time_amount
                     append_elem(&views[.popping_bubbles].indices, bubble_id)
-                    index, found = slice.linear_search(views[.end_goals].indices[:], end_goal_index)
-                    if found do unordered_remove(&views[.end_goals].indices, index)
+
+                    remove_entity(end_goal_index, .end_goals, free = false)
+
                     end_goal_entity.color = .gold
                     append_elem(&views[.end_goals_completed].indices, end_goal_index)
                     break
@@ -655,12 +653,18 @@ main :: proc() {
             }
         }
 
-        // NOTE(felix): this is mainly to free projectiles which miss and go offscreen
-        for entity_id in views[.active].indices {
-            using entity := &entity_backing_memory[entity_id]
-            offscreen := x + width <= 0 || 1 <= x
-            offscreen ||= y + height <= 0 || world_height <= y
-            if offscreen do remove_entity(entity_id)
+        projectile_views :: [?]View_Id{ .splitters, .growers }
+        for view_id in projectile_views {
+            view := &views[view_id]
+            for entity_id in view.indices {
+                using entity := &entity_backing_memory[entity_id]
+                offscreen := x + width <= 0 || 1 <= x
+                offscreen ||= y + height <= 0 || world_height <= y
+                if offscreen {
+                    remove_entity(entity_id, view_id, free = false)
+                    remove_entity(entity_id)
+                }
+            }
         }
 
         for entity_id in views[.popping_bubbles].indices { // draw popping bubbles
