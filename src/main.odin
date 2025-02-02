@@ -598,7 +598,6 @@ main :: proc() {
         }
 
         if rl.IsKeyPressed(.SPACE) {
-
             if gun_on_horizontal_edge {
                 if gun.y == 0 do gun.y = max_y(gun)
                 else if gun.y == max_y(gun) do gun.y = 0
@@ -608,6 +607,12 @@ main :: proc() {
             }
 
             create_pop_ripple_from_circle([2]f32{gun.x, gun.y}, gun.width, gun.color)
+        }
+
+        snap_to_edge_center := rl.IsKeyPressed(.C)
+        if snap_to_edge_center {
+            if gun_on_horizontal_edge do gun.x = 0.5
+            else do gun.y = world_height / 2
         }
 
         gun.x = clamp(gun.x, 0, max_x(gun))
