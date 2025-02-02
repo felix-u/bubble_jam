@@ -889,7 +889,7 @@ main :: proc() {
         level_transition_animation: {
             using level_transition_state
 
-            level_transition_speed :: 7
+            level_transition_speed :: 4
             text_fade_amount :: level_transition_speed
 
             handle_curtain: if old_level_index != new_level_index {
