@@ -552,8 +552,6 @@ main :: proc() {
                 // TODO(felix): same problem as above, with the splitters
                 intersect := rl.CheckCollisionRecs(grower.rect, entity.rect)
                 if intersect {
-                    // TODO(felix): ditto
-
                     vector := la.normalize(grower.velocity)
                     velocity_factor :: 0.1
                     entity.velocity = vector * velocity_factor
