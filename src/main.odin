@@ -144,12 +144,12 @@ reset_entities_from_level :: proc() {
 }
 
 Entity_Edit_Mode :: enum {
+    none,
     bubble,
     obstacle,
     end_goal,
-    none,
 }
-current_entity_edit_mode : Entity_Edit_Mode = .bubble
+current_entity_edit_mode : Entity_Edit_Mode
 entity_edit_mode_keypress_map := [Entity_Edit_Mode]rl.KeyboardKey {
     .bubble   = .B,
     .obstacle = .O,
