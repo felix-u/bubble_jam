@@ -843,7 +843,6 @@ main :: proc() {
             begin_transition_to_level(new_level_index)
         }
 
-        // TODO(felix): lost is sometimes true after a win, and not true immediately after a loss
         lost := !won && len(views[.bubbles].indices) == 0
         lost &&= !level_transition_state_active
         if lost {
