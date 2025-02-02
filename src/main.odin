@@ -310,20 +310,16 @@ create_pop_ripple_from_circle :: proc(pos: [2]f32, radius: f32, color: Color) {
 editor_handle_input_for_placement_rectangle_and_rectangular_entity_creation  :: proc(view_id: View_Id, world_mouse_pos: [2]f32, color_for_creation: Color = .black)
 {
     if rl.IsMouseButtonReleased(.LEFT) && placement_unnormalized_rectangle.width != 0 && placement_unnormalized_rectangle.height != 0 {
-        normalized_rectangle_to_place := absolute_normalized_rectangle(placement_unnormalized_rectangle)
-        if normalized_rectangle_to_place.width < cell_size {
-            normalized_rectangle_to_place.width = cell_size
-        }
-        if normalized_rectangle_to_place.height < cell_size {
-            normalized_rectangle_to_place.height = cell_size
-        }
+        using normalized_rectangle_to_place := absolute_normalized_rectangle(placement_unnormalized_rectangle)
+
+        clamp_low :: max
+        width = clamp_low(width, cell_size)
+        height = clamp_low(height, cell_size)
+
         snap_adjusted_normalized_rectangle_to_place := snap_rectangle_to_grid(normalized_rectangle_to_place)
         entity := Entity{
-            x = snap_adjusted_normalized_rectangle_to_place.x,
-            y = snap_adjusted_normalized_rectangle_to_place.y,
-            width = snap_adjusted_normalized_rectangle_to_place.width,
-            height = snap_adjusted_normalized_rectangle_to_place.height,
-            color = color_for_creation
+            rect = snap_adjusted_normalized_rectangle_to_place,
+            color = color_for_creation,
         }
         push_entity(entity, view_id)
         placement_unnormalized_rectangle = rl.Rectangle{0,0,0,0}
@@ -332,7 +328,6 @@ editor_handle_input_for_placement_rectangle_and_rectangular_entity_creation  :: 
         using placement_unnormalized_rectangle
         x = world_mouse_pos.x
         y = world_mouse_pos.y
-
     } else if rl.IsMouseButtonDown(.LEFT) {
         using placement_unnormalized_rectangle
         if x != 0 && y != 0 {
@@ -492,6 +487,11 @@ main :: proc() {
                     bubble_placement_circle = [3]f32{0,0,0}
                 }
                 if rl.IsMouseButtonDown(.LEFT) {
+                    snap_to_vertical_center := rl.IsKeyDown(.C)
+                    if snap_to_vertical_center {
+                        bubble_placement_circle.y = world_height / 2
+                    }
+
                     vector_from_center_to_mouse := [2]f32{world_mouse_pos.x - bubble_placement_circle[0], world_mouse_pos.y - bubble_placement_circle[1]}
                     length := la.length(vector_from_center_to_mouse)
                     bubble_placement_circle[2] = length
@@ -609,7 +609,7 @@ main :: proc() {
             create_pop_ripple_from_circle([2]f32{gun.x, gun.y}, gun.width, gun.color)
         }
 
-        snap_to_edge_center := rl.IsKeyPressed(.C)
+        snap_to_edge_center := rl.IsKeyPressed(.C) && !rl.IsMouseButtonDown(.LEFT)
         if snap_to_edge_center {
             if gun_on_horizontal_edge do gun.x = 0.5
             else do gun.y = world_height / 2
