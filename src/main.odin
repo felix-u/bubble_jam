@@ -292,7 +292,7 @@ world_from_screen :: #force_inline proc(value: $T) -> T {
     return result;
 }
 
-obstacle_placement_unnormalized_rectangle := rl.Rectangle{0,0,0,0}
+placement_unnormalized_rectangle := rl.Rectangle{0,0,0,0}
 absolute_normalized_rectangle :: proc(r: rl.Rectangle) -> rl.Rectangle {
     ret := rl.Rectangle{
         x = math.min(r.x, r.x + r.width),
@@ -319,6 +319,26 @@ snap_rectangle_to_grid :: proc(r: rl.Rectangle) -> rl.Rectangle {
 
 save_screen_flash_time_amount : f32 = 0.5
 save_screen_flash_timer := f32(0)
+
+create_pop_ripple_from_circle :: proc(pos: [2]f32, radius: f32, color: Color) {
+    new_popping_bubble := Entity{
+        x = pos.x,
+        y = pos.y,
+        width = radius,
+        color = color,
+    }
+    new_popping_bubble.pop_anim_time_amount = 0.25
+    new_popping_bubble.pop_anim_timer = new_popping_bubble.pop_anim_time_amount
+    push_entity(new_popping_bubble, .popping_bubbles)
+    new_popping_bubble.width /= 2
+    new_popping_bubble.pop_anim_time_amount = 0.22
+    new_popping_bubble.pop_anim_timer = new_popping_bubble.pop_anim_time_amount
+    push_entity(new_popping_bubble, .popping_bubbles)
+    new_popping_bubble.width = 0.0001
+    new_popping_bubble.pop_anim_time_amount = 0.19
+    new_popping_bubble.pop_anim_timer = new_popping_bubble.pop_anim_time_amount
+    push_entity(new_popping_bubble, .popping_bubbles)
+}
 
 main :: proc() {
     when ODIN_DEBUG { 	// memory leak tracking
@@ -459,9 +479,9 @@ main :: proc() {
             }
             case .obstacle:
             {
-                if rl.IsMouseButtonReleased(.LEFT) && obstacle_placement_unnormalized_rectangle.width != 0 && obstacle_placement_unnormalized_rectangle.height != 0 {
+                if rl.IsMouseButtonReleased(.LEFT) && placement_unnormalized_rectangle.width != 0 && placement_unnormalized_rectangle.height != 0 {
 
-                    obstacle_rectangle := absolute_normalized_rectangle(obstacle_placement_unnormalized_rectangle)
+                    obstacle_rectangle := absolute_normalized_rectangle(placement_unnormalized_rectangle)
                     if obstacle_rectangle.width < cell_size {
                         obstacle_rectangle.width = cell_size
                     }
@@ -477,15 +497,15 @@ main :: proc() {
                         color = .black,
                     }
                     push_entity(obstacle_entity, .obstacles)
-                    obstacle_placement_unnormalized_rectangle = rl.Rectangle{0,0,0,0}
+                    placement_unnormalized_rectangle = rl.Rectangle{0,0,0,0}
                 }
                 else if rl.IsMouseButtonPressed(.LEFT) {
-                    using obstacle_placement_unnormalized_rectangle
+                    using placement_unnormalized_rectangle
                     x = world_mouse_pos.x
                     y = world_mouse_pos.y
 
                 } else if rl.IsMouseButtonDown(.LEFT) {
-                    using obstacle_placement_unnormalized_rectangle
+                    using placement_unnormalized_rectangle
                     if x != 0 && y != 0 {
                         width = world_mouse_pos.x - x
                         height = world_mouse_pos.y - y
@@ -505,25 +525,48 @@ main :: proc() {
             }
             case .end_goal:
             {
-                if rl.IsMouseButtonPressed(.LEFT) {
-                    end_goal_rectangle := rl.Rectangle{
-                        x = world_mouse_pos.x,
-                        y = world_mouse_pos.y,
-                        width = cell_size,
-                        height = cell_size,
-                    }
+                if rl.IsMouseButtonReleased(.LEFT) && placement_unnormalized_rectangle.width != 0 && placement_unnormalized_rectangle.height != 0 {
 
-                    snap_adjusted_end_goal_rectangle := rl.Rectangle{
-                        x = math.floor(end_goal_rectangle.x / cell_size) * cell_size,
-                        y = math.floor(end_goal_rectangle.y / cell_size) * cell_size,
-                        width = math.round(end_goal_rectangle.width / cell_size) * cell_size,
-                        height = math.round(end_goal_rectangle.height / cell_size) * cell_size,
+                    obstacle_rectangle := absolute_normalized_rectangle(placement_unnormalized_rectangle)
+                    if obstacle_rectangle.width < cell_size {
+                        obstacle_rectangle.width = cell_size
                     }
-                    end_goal_entity := Entity{
-                        rect = snap_adjusted_end_goal_rectangle,
+                    if obstacle_rectangle.height < cell_size {
+                        obstacle_rectangle.height = cell_size
+                    }
+                    snap_adjusted_obstacle_rectangle := snap_rectangle_to_grid(obstacle_rectangle)
+                    obstacle_entity := Entity{
+                        x = snap_adjusted_obstacle_rectangle.x,
+                        y = snap_adjusted_obstacle_rectangle.y,
+                        width = snap_adjusted_obstacle_rectangle.width,
+                        height = snap_adjusted_obstacle_rectangle.height,
                         color = .green,
                     }
-                    push_entity(end_goal_entity, .end_goals)
+                    push_entity(obstacle_entity, .obstacles)
+                    placement_unnormalized_rectangle = rl.Rectangle{0,0,0,0}
+                }
+                else if rl.IsMouseButtonPressed(.LEFT) {
+                    using placement_unnormalized_rectangle
+                    x = world_mouse_pos.x
+                    y = world_mouse_pos.y
+
+                } else if rl.IsMouseButtonDown(.LEFT) {
+                    using placement_unnormalized_rectangle
+                    if x != 0 && y != 0 {
+                        width = world_mouse_pos.x - x
+                        height = world_mouse_pos.y - y
+                    }
+                }
+                else if rl.IsMouseButtonPressed(.RIGHT) {
+                    // delete any colliding obstacles
+                    for entity_id in views[.obstacles].indices {
+                        entity := entity_backing_memory[entity_id]
+                        did_mouse_rectangle_intersect := rl.CheckCollisionPointRec(world_mouse_pos, entity.rect)
+
+                        if did_mouse_rectangle_intersect {
+                            remove_entity(entity_id, .obstacles)
+                        }
+                    }
                 }
             }
             case .none: {}
@@ -639,7 +682,13 @@ main :: proc() {
 
                 if !intersect do continue
 
-                vector := la.normalize(splitter.velocity)
+                new_popping_bubble := entity^
+                create_pop_ripple_from_circle([2]f32{new_popping_bubble.x, new_popping_bubble.y}, new_popping_bubble.width, new_popping_bubble.color)
+
+                splitter_rectangle_center_position := [2]f32{ splitter.x + splitter.width / 2, splitter.y + splitter.height / 2 }
+                vector_from_splitter_to_bubble_center := [2]f32{ entity.x - splitter_rectangle_center_position.x, entity.y - splitter_rectangle_center_position.y }
+
+                vector := la.normalize(vector_from_splitter_to_bubble_center)
                 velocity_factor :: 0.1
                 new_velocity := vector * velocity_factor
                 first_bubble_velocity_rotated_90_degrees := rl.Vector2Rotate(new_velocity, 0.6)
@@ -669,8 +718,9 @@ main :: proc() {
                 intersect := rl.CheckCollisionCircleRec(screen_bubble_pos, screen_bubble_radius, screen_grower_rectangle)
 
                 if !intersect do continue
-
-                vector := la.normalize(grower.velocity)
+                grower_rectangle_center_position := [2]f32{ grower.x + grower.width / 2, grower.y + grower.height / 2 }
+                vector_from_grower_to_bubble_center := [2]f32{ entity.x - grower_rectangle_center_position.x, entity.y - grower_rectangle_center_position.y }
+                vector := la.normalize(vector_from_grower_to_bubble_center)
                 velocity_factor :: 0.1
                 entity.velocity = vector * velocity_factor
                 entity.width *= 1.05
@@ -681,12 +731,9 @@ main :: proc() {
             colliding_screen_edge_horizontal := x - width <= 0 || 1 <= x + width
             colliding_screen_edge_vertical := y - width <= 0 || world_height <= y + width
             if colliding_screen_edge_horizontal || colliding_screen_edge_vertical {
-                remove_entity(entity_id, .bubbles, free = false)
-
-                pop_anim_time_amount = 0.25
-                pop_anim_timer = pop_anim_time_amount
-
-                append_elem(&views[.popping_bubbles].indices, entity_id)
+                new_popping_bubble := entity^
+                create_pop_ripple_from_circle([2]f32{new_popping_bubble.x, new_popping_bubble.y}, new_popping_bubble.width, new_popping_bubble.color)
+                remove_entity(entity_id, .bubbles, free = true)
                 continue bubbles
             }
         }
@@ -700,12 +747,11 @@ main :: proc() {
         for bubble_id in views[.bubbles].indices { // "pop" bubbles if they touch an obstacle or get too small
             entity := &entity_backing_memory[bubble_id]
             if entity.width < 0.003 { // too small
+                new_popping_bubble := entity^
+                create_pop_ripple_from_circle([2]f32{new_popping_bubble.x, new_popping_bubble.y}, new_popping_bubble.width, new_popping_bubble.color)
+
                 remove_entity(bubble_id, .bubbles, free = false)
 
-                entity.pop_anim_time_amount = 0.25
-                entity.pop_anim_timer = entity.pop_anim_time_amount
-
-                append_elem(&views[.popping_bubbles].indices, bubble_id)
                 continue
             }
             for obstacle_id in views[.obstacles].indices { // touches obstacle
@@ -717,12 +763,13 @@ main :: proc() {
 
                 did_bubble_collide_with_obstacle := rl.CheckCollisionCircleRec([2]f32{screen_bubble_pos.x, screen_bubble_pos.y}, screen_bubble_radius, screen_obstacle_rectangle)
                 if did_bubble_collide_with_obstacle {
-                    remove_entity(bubble_id, .bubbles, free = false)
+                    new_popping_bubble := entity^
+                    create_pop_ripple_from_circle([2]f32{new_popping_bubble.x, new_popping_bubble.y}, new_popping_bubble.width, new_popping_bubble.color)
+                
+                    remove_entity(bubble_id, .bubbles, free = true)
 
                     entity.pop_anim_time_amount = 0.25
                     entity.pop_anim_timer = entity.pop_anim_time_amount
-
-                    append_elem(&views[.popping_bubbles].indices, bubble_id)
                     break
                 }
             }
@@ -794,7 +841,7 @@ main :: proc() {
         }
 
         { // draw ed stuff
-            obstacle_placement_rectangle := absolute_normalized_rectangle(obstacle_placement_unnormalized_rectangle)
+            obstacle_placement_rectangle := absolute_normalized_rectangle(placement_unnormalized_rectangle)
             rl.DrawRectangleRec(screen_from_world(obstacle_placement_rectangle), auto_cast colors[.black])
 
             edit_mode_text := entity_edit_mode_name_map[current_entity_edit_mode]
@@ -803,6 +850,19 @@ main :: proc() {
             screen_bubble_placement_circle := screen_from_world(bubble_placement_circle)
             transparent_blue := rl.Color{ 0, 0, 255, 100 }
             rl.DrawCircle(i32(screen_bubble_placement_circle.x), i32(screen_bubble_placement_circle.y), screen_bubble_placement_circle.z, auto_cast transparent_blue)
+        }
+
+        { // draw game over text when all bubbles gone
+            if len(views[.bubbles].indices) == 0 {
+                draw_text("Game Over", [2]f32{0.2, 0.2}, 0.1, .black)
+            }
+        }
+
+        { // go to next level with wrap if all end_goals are gone
+            if len(views[.end_goals].indices) == 0 {
+                curr_level_index = (curr_level_index + 1) % NUM_LEVELS
+                reset_entities_from_level()
+            }
         }
 
         { // draw debug visualizer
