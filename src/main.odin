@@ -168,6 +168,18 @@ reset_entities_from_level :: proc() {
     }
 }
 
+Entity_Edit_Mode :: enum {
+    bubble,
+    obstacle,
+    end_goal,
+}
+current_entity_edit_mode : Entity_Edit_Mode = .bubble
+// Entity_Edit_Mode_Enter_KeyPress :: enum {
+//     bubble = .,
+//     obstacle = .O,
+//     end_goal = .E,
+// }
+
 entity_view_init :: proc(view: ^Entity_View) -> Entity_View {
     view.indices = slice.into_dynamic(view.backing_memory[:])
     return view^
