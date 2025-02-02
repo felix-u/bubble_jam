@@ -609,7 +609,7 @@ main :: proc() {
 
             create_pop_ripple_from_circle([2]f32{gun.x, gun.y}, gun.width, gun.color)
         }
-        
+
         gun.x = clamp(gun.x, 0, max_x(gun))
         gun.y = clamp(gun.y, 0, max_y(gun))
 
@@ -831,9 +831,14 @@ main :: proc() {
         lost := !won && len(views[.bubbles].indices) == 0
         lost &&= !level_transition_state.active
         lost &&= current_entity_edit_mode == .none
-        if lost {
+
+        voluntary_quick_redo := rl.IsKeyPressed(.R)
+        redo := lost || voluntary_quick_redo
+
+        if redo {
             begin_transition_to_level(current_level_index)
         }
+
 
         hint_font_size: f32 = 0.03
         padding := [2]f32{ hint_font_size * 0.75, hint_font_size * 1.5 }
