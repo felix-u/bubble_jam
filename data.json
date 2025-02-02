@@ -1,6 +1,6 @@
 [
 	{
-		"name": "level 1",
+		"name": "1. Poparazzi",
 		"gun_initial_position": [
 			0.17833194,
 			0.00000000
@@ -167,7 +167,7 @@
 		"hint": "left click"
 	},
 	{
-		"name": "level 2",
+		"name": "2. Don't Pop Believin'",
 		"gun_initial_position": [
 			0.71166956,
 			0.54250002
@@ -239,7 +239,7 @@
 		"hint": ""
 	},
 	{
-		"name": "level 3",
+		"name": "3. Don't Pop Me Now",
 		"gun_initial_position": [
 			0.00000000,
 			0.00000000
@@ -257,7 +257,7 @@
 		"hint": ""
 	},
 	{
-		"name": "level 4",
+		"name": "4. Popular",
 		"gun_initial_position": [
 			0.00000000,
 			0.00000000
@@ -275,7 +275,7 @@
 		"hint": ""
 	},
 	{
-		"name": "level 5",
+		"name": "5. Pop off",
 		"gun_initial_position": [
 			0.00000000,
 			0.00000000
@@ -293,7 +293,7 @@
 		"hint": ""
 	},
 	{
-		"name": "level 6",
+		"name": "6. Pop goes the weasel",
 		"gun_initial_position": [
 			0.00000000,
 			0.00000000
@@ -311,7 +311,7 @@
 		"hint": ""
 	},
 	{
-		"name": "level 7",
+		"name": "7. Pop the question",
 		"gun_initial_position": [
 			0.00000000,
 			0.00000000
@@ -329,7 +329,7 @@
 		"hint": ""
 	},
 	{
-		"name": "level 8",
+		"name": "8. Poppy",
 		"gun_initial_position": [
 			0.00000000,
 			0.00000000
@@ -347,7 +347,7 @@
 		"hint": ""
 	},
 	{
-		"name": "level 9",
+		"name": "9. Popcorn",
 		"gun_initial_position": [
 			0.00000000,
 			0.00000000
@@ -365,7 +365,7 @@
 		"hint": ""
 	},
 	{
-		"name": "level 10",
+		"name": "10. Soda pop",
 		"gun_initial_position": [
 			0.00000000,
 			0.00000000

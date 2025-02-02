@@ -886,18 +886,19 @@ main :: proc() {
                 opacity += text_fade_amount * 4 if text_fading == .in_ else -text_fade_amount
                 opacity = clamp(0, opacity, 255)
 
-                font_size :: 100
+                font_size :: 50
                 text_width_screen := cast(f32) rl.MeasureText(text, font_size)
+                pad: f32 : 0.05
                 text_position := [2]f32{
-                    screen_from_world(cast(f32) 0.5) - text_width_screen / 2,
-                    screen_from_world(world_height / 2) - font_size / 2
+                    screen_from_world(pad),
+                    screen_from_world(world_height - pad) - font_size
                 }
                 rectangle_color := colors[.white]
                 rectangle_color.a = auto_cast opacity
 
                 text_color := colors[.dark_blue]
                 text_color.a = rectangle_color.a
-                rl.DrawRectangleRec({ x = text_position.x - font_size / 4, y = text_position.y, width = text_width_screen, height = font_size }, auto_cast rectangle_color)
+                rl.DrawRectangleRec({ x = text_position.x - screen_from_world(pad / 2), y = text_position.y, width = text_width_screen + screen_from_world(pad / 2), height = font_size }, auto_cast rectangle_color)
                 rl.DrawTextEx(rl.GetFontDefault(), text, text_position, font_size, 1, auto_cast text_color)
 
                 if text_fading == .in_ && opacity == 255 do text_fading = .out
