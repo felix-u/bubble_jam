@@ -671,7 +671,7 @@ main :: proc() {
 
             bullet.velocity = { target.x - bullet.x, target.y - bullet.y }
             bullet.velocity = la.normalize(bullet.velocity)
-            bullet_speed :: 0.9
+            bullet_speed :: 1.3
             bullet.velocity *= bullet_speed
 
             view_id: View_Id = .growers if shoot_grower else .splitters
