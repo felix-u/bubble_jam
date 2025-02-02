@@ -28,7 +28,6 @@ colors := [Color][4]u8{
 
 Entity :: struct {
     using rect: rl.Rectangle,
-    radius: f32,
     velocity: [2]f32,
     accel: [2]f32,
     color: Color,
@@ -78,7 +77,7 @@ levels_init :: proc() -> [NUM_LEVELS]Level {
                     Entity{
                         x = 0.5,
                         y = 0.1,
-                        radius = 0.05,
+                        width = 0.05,
                         color = .red,
                     },
                 },
@@ -116,7 +115,7 @@ levels_init :: proc() -> [NUM_LEVELS]Level {
                     Entity{
                         x = 0.2,
                         y = 0.3,
-                        radius = 0.05,
+                        width = 0.05,
                         color = .red,
                     },
                 },
@@ -388,7 +387,7 @@ main :: proc() {
     bubble_initial_state := Entity{
         x = 0.5,
         y = 0.3,
-        radius = initial_bubble_radius,
+        width = initial_bubble_radius,
         color = .blue,
     }
     push_entity(bubble_initial_state, .bubbles)
@@ -589,13 +588,12 @@ main :: proc() {
         }
 
         bubbles: for entity_id in views[.bubbles].indices { // update bubbles
-            entity := &entity_backing_memory[entity_id]
+            using entity := &entity_backing_memory[entity_id]
 
             for splitter_id in views[.splitters].indices {
                 splitter := &entity_backing_memory[splitter_id]
 
-                // TODO(felix): this check doesn't work sometimes, because the splitter moves too quickly
-                intersect := rl.CheckCollisionRecs(splitter.rect, entity.rect)
+                intersect := rl.CheckCollisionCircleRec({ x, y }, width, splitter.rect)
 
                 if !intersect do continue
 
@@ -604,13 +602,13 @@ main :: proc() {
                 new_velocity := vector * velocity_factor
                 first_bubble_velocity_rotated_90_degrees := rl.Vector2Rotate(new_velocity, 0.6)
                 second_bubble_velocity_rotate_90_degrees := rl.Vector2Rotate(new_velocity, -0.6)
-                entity.radius /= 2
+                entity.width /= 2
                 entity.velocity = first_bubble_velocity_rotated_90_degrees
 
                 new_bubble := Entity{
                     x = entity.x,
                     y = entity.y,
-                    radius = entity.radius,
+                    width = entity.width,
                     color = entity.color,
                     velocity = second_bubble_velocity_rotate_90_degrees,
                 }
@@ -624,24 +622,26 @@ main :: proc() {
             for grower_id in views[.growers].indices {
                 grower := &entity_backing_memory[grower_id]
 
-                // TODO(felix): same problem as above, with the splitters
-                intersect := rl.CheckCollisionRecs(grower.rect, entity.rect)
+                intersect := rl.CheckCollisionCircleRec({ x, y }, width, grower.rect)
+                
                 if intersect {
                     vector := la.normalize(grower.velocity)
                     velocity_factor :: 0.1
                     entity.velocity = vector * velocity_factor
-                    entity.radius *= 1.05
+                    entity.width *= 1.05
                 }
             }
 
-            colliding_screen_edge_horizontal := entity.x <= entity.width || entity.x >= 1 - entity.width
-            colliding_screen_edge_vertical := entity.y <= entity.height || entity.y >= world_height - entity.height
+            colliding_screen_edge_horizontal := x - width <= 0 || 1 <= x + width
+            colliding_screen_edge_vertical := y - width <= 0 || world_height <= y + width
             if colliding_screen_edge_horizontal || colliding_screen_edge_vertical {
                 remove_entity(entity_id, .bubbles, free = false)
-                entity.pop_anim_time_amount = 0.25
-                entity.pop_anim_timer = entity.pop_anim_time_amount
+
+                pop_anim_time_amount = 0.25
+                pop_anim_timer = pop_anim_time_amount
 
                 append_elem(&views[.popping_bubbles].indices, entity_id)
+                continue bubbles
             }
         }
 
@@ -653,7 +653,7 @@ main :: proc() {
 
         for bubble_id in views[.bubbles].indices { // "pop" bubbles if they touch an obstacle or get too small
             entity := &entity_backing_memory[bubble_id]
-            if entity.radius < 0.003 { // too small
+            if entity.width < 0.003 { // too small
                 remove_entity(bubble_id, .bubbles, free = false)
 
                 entity.pop_anim_time_amount = 0.25
@@ -666,7 +666,7 @@ main :: proc() {
                 obstacle := entity_backing_memory[obstacle_id]
 
                 screen_bubble_pos := screen_from_world([2]f32{ entity.x, entity.y })
-                screen_bubble_radius := screen_from_world(entity.radius)
+                screen_bubble_radius := screen_from_world(entity.width)
                 screen_obstacle_rectangle := screen_from_world(obstacle.rect)
 
                 did_bubble_collide_with_obstacle := rl.CheckCollisionCircleRec([2]f32{screen_bubble_pos.x, screen_bubble_pos.y}, screen_bubble_radius, screen_obstacle_rectangle)
@@ -683,7 +683,7 @@ main :: proc() {
             for end_goal_index in views[.end_goals].indices { // touches end goal
                 end_goal_entity := &entity_backing_memory[end_goal_index]
                 screen_bubble_pos := screen_from_world([2]f32{ entity.x, entity.y })
-                screen_bubble_radius := screen_from_world(entity.radius)
+                screen_bubble_radius := screen_from_world(entity.width)
                 screen_end_goal_rectangle := screen_from_world(end_goal_entity.rect)
 
                 did_bubble_collide_with_end_goal := rl.CheckCollisionCircleRec([2]f32{screen_bubble_pos.x, screen_bubble_pos.y}, screen_bubble_radius, screen_end_goal_rectangle)
@@ -706,7 +706,7 @@ main :: proc() {
         for entity_id in views[.popping_bubbles].indices { // popping bubbles update
             entity := &entity_backing_memory[entity_id]
             entity.pop_anim_timer -= delta_time
-            entity.radius += delta_time * 0.5
+            entity.width += delta_time * 0.5
             if entity.pop_anim_timer <= 0 {
                 remove_entity(entity_id, .popping_bubbles)
             }
@@ -730,7 +730,7 @@ main :: proc() {
             // will be drawn as circle lines instead of solid
             bubble := &entity_backing_memory[entity_id]
             screen_pos := screen_from_world([2]f32{ bubble.x, bubble.y })
-            screen_radius := screen_from_world(bubble.radius)
+            screen_radius := screen_from_world(bubble.width)
             rl.DrawCircleLinesV(screen_pos, screen_radius, auto_cast colors[bubble.color])
         }
 
@@ -743,7 +743,7 @@ main :: proc() {
         for entity_id in views[.bubbles].indices { // draw all bubbles
             bubble := &entity_backing_memory[entity_id]
             screen_pos := screen_from_world([2]f32{ bubble.x, bubble.y })
-            screen_radius := screen_from_world(bubble.radius)
+            screen_radius := screen_from_world(bubble.width)
             rl.DrawCircleV(screen_pos, screen_radius, auto_cast colors[bubble.color])
         }
 
