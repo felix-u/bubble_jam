@@ -119,12 +119,6 @@ read_levels_from_json_file :: proc() {
 reset_entities_from_level :: proc() {
     for view_id in View_Id {
         non_zero_resize(&views[view_id].indices, 0)
-        // non_zero_resize(&views[view_id].indices, 0)
-        // non_zero_resize(&views[view_id].indices, 0)
-        // non_zero_resize(&views[view_id].indices, 0)
-        // non_zero_resize(&views[view_id].indices, 0)
-        // non_zero_resize(&views[view_id].indices, 0)
-        // non_zero_resize(&views[view_id].indices, 0)
     }
 
     for i in 1 ..< ENTITY_CAP do append_elem(&views[.freelist].indices, cast(Entity_Index) i)
@@ -597,6 +591,19 @@ main :: proc() {
             }
         }
 
+        if rl.IsKeyPressed(.SPACE) {
+
+            if gun_on_horizontal_edge {
+                if gun.y == 0 do gun.y = max_y(gun)
+                else if gun.y == max_y(gun) do gun.y = 0
+            } else if gun_on_vertical_edge {
+                if gun.x == 0 do gun.x = max_x(gun)
+                else if gun.x == max_x(gun) do gun.x = 0
+            }
+
+            create_pop_ripple_from_circle([2]f32{gun.x, gun.y}, gun.width, gun.color)
+        }
+        
         gun.x = clamp(gun.x, 0, max_x(gun))
         gun.y = clamp(gun.y, 0, max_y(gun))
 
