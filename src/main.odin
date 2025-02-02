@@ -814,6 +814,7 @@ main :: proc() {
 
         won := len(views[.end_goals].indices) == 0
         won &&= !level_transition_state.active
+        won &&= current_entity_edit_mode == .none
         if won {
             new_level_index := (current_level_index + 1) % NUM_LEVELS
             begin_transition_to_level(new_level_index)
@@ -821,6 +822,7 @@ main :: proc() {
 
         lost := !won && len(views[.bubbles].indices) == 0
         lost &&= !level_transition_state.active
+        lost &&= current_entity_edit_mode == .none
         if lost {
             begin_transition_to_level(current_level_index)
         }
