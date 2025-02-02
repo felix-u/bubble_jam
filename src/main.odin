@@ -214,7 +214,7 @@ remove_entity :: proc(entity_id: Entity_Index, view_ids: ..View_Id, free: bool =
     }
 }
 
-screen_size := [2]f32{ 960, 540 }
+screen_size := [2]f32{ 1200, 675 }
 screen_from_world_scalar: f32
 screen_margin_y: f32
 dpi: f32 = 1
@@ -309,6 +309,51 @@ create_pop_ripple_from_circle :: proc(pos: [2]f32, radius: f32, color: Color) {
     push_entity(new_popping_bubble, .popping_bubbles)
 }
 
+editor_handle_input_for_placement_rectangle_and_rectangular_entity_creation  :: proc(view_id: View_Id, world_mouse_pos: [2]f32, color_for_creation: Color = .black)
+{
+    if rl.IsMouseButtonReleased(.LEFT) && placement_unnormalized_rectangle.width != 0 && placement_unnormalized_rectangle.height != 0 {
+        normalized_rectangle_to_place := absolute_normalized_rectangle(placement_unnormalized_rectangle)
+        if normalized_rectangle_to_place.width < cell_size {
+            normalized_rectangle_to_place.width = cell_size
+        }
+        if normalized_rectangle_to_place.height < cell_size {
+            normalized_rectangle_to_place.height = cell_size
+        }
+        snap_adjusted_normalized_rectangle_to_place := snap_rectangle_to_grid(normalized_rectangle_to_place)
+        entity := Entity{
+            x = snap_adjusted_normalized_rectangle_to_place.x,
+            y = snap_adjusted_normalized_rectangle_to_place.y,
+            width = snap_adjusted_normalized_rectangle_to_place.width,
+            height = snap_adjusted_normalized_rectangle_to_place.height,
+            color = color_for_creation
+        }
+        push_entity(entity, view_id)
+        placement_unnormalized_rectangle = rl.Rectangle{0,0,0,0}
+    }
+    else if rl.IsMouseButtonPressed(.LEFT) {
+        using placement_unnormalized_rectangle
+        x = world_mouse_pos.x
+        y = world_mouse_pos.y
+
+    } else if rl.IsMouseButtonDown(.LEFT) {
+        using placement_unnormalized_rectangle
+        if x != 0 && y != 0 {
+            width = world_mouse_pos.x - x
+            height = world_mouse_pos.y - y
+        }
+    }
+    else if rl.IsMouseButtonPressed(.RIGHT) {
+        for entity_id in views[view_id].indices {
+            entity := entity_backing_memory[entity_id]
+            did_mouse_rectangle_intersect := rl.CheckCollisionPointRec(world_mouse_pos, entity.rect)
+
+            if did_mouse_rectangle_intersect {
+                remove_entity(entity_id, view_id)
+            }
+        }
+    }
+}
+
 main :: proc() {
     when ODIN_DEBUG { 	// memory leak tracking
 		track: mem.Tracking_Allocator
@@ -371,6 +416,7 @@ main :: proc() {
     target_fps := rl.GetMonitorRefreshRate(rl.GetCurrentMonitor())
     rl.SetTargetFPS(target_fps)
     rl.MaximizeWindow()
+    rl.RestoreWindow()
 
     initial_bubble_radius :: 0.05
     bubble_initial_state := Entity{
@@ -449,98 +495,8 @@ main :: proc() {
                     }
                 }
             }
-            case .obstacle:
-            {
-                if rl.IsMouseButtonReleased(.LEFT) && placement_unnormalized_rectangle.width != 0 && placement_unnormalized_rectangle.height != 0 {
-
-                    obstacle_rectangle := absolute_normalized_rectangle(placement_unnormalized_rectangle)
-                    if obstacle_rectangle.width < cell_size {
-                        obstacle_rectangle.width = cell_size
-                    }
-                    if obstacle_rectangle.height < cell_size {
-                        obstacle_rectangle.height = cell_size
-                    }
-                    snap_adjusted_obstacle_rectangle := snap_rectangle_to_grid(obstacle_rectangle)
-                    obstacle_entity := Entity{
-                        x = snap_adjusted_obstacle_rectangle.x,
-                        y = snap_adjusted_obstacle_rectangle.y,
-                        width = snap_adjusted_obstacle_rectangle.width,
-                        height = snap_adjusted_obstacle_rectangle.height,
-                        color = .black,
-                    }
-                    push_entity(obstacle_entity, .obstacles)
-                    placement_unnormalized_rectangle = rl.Rectangle{0,0,0,0}
-                }
-                else if rl.IsMouseButtonPressed(.LEFT) {
-                    using placement_unnormalized_rectangle
-                    x = world_mouse_pos.x
-                    y = world_mouse_pos.y
-
-                } else if rl.IsMouseButtonDown(.LEFT) {
-                    using placement_unnormalized_rectangle
-                    if x != 0 && y != 0 {
-                        width = world_mouse_pos.x - x
-                        height = world_mouse_pos.y - y
-                    }
-                }
-                else if rl.IsMouseButtonPressed(.RIGHT) {
-                    // delete any colliding obstacles
-                    for entity_id in views[.obstacles].indices {
-                        entity := entity_backing_memory[entity_id]
-                        did_mouse_rectangle_intersect := rl.CheckCollisionPointRec(world_mouse_pos, entity.rect)
-
-                        if did_mouse_rectangle_intersect {
-                            remove_entity(entity_id, .obstacles)
-                        }
-                    }
-                }
-            }
-            case .end_goal:
-            {
-                if rl.IsMouseButtonReleased(.LEFT) && placement_unnormalized_rectangle.width != 0 && placement_unnormalized_rectangle.height != 0 {
-
-                    obstacle_rectangle := absolute_normalized_rectangle(placement_unnormalized_rectangle)
-                    if obstacle_rectangle.width < cell_size {
-                        obstacle_rectangle.width = cell_size
-                    }
-                    if obstacle_rectangle.height < cell_size {
-                        obstacle_rectangle.height = cell_size
-                    }
-                    snap_adjusted_obstacle_rectangle := snap_rectangle_to_grid(obstacle_rectangle)
-                    obstacle_entity := Entity{
-                        x = snap_adjusted_obstacle_rectangle.x,
-                        y = snap_adjusted_obstacle_rectangle.y,
-                        width = snap_adjusted_obstacle_rectangle.width,
-                        height = snap_adjusted_obstacle_rectangle.height,
-                        color = .green,
-                    }
-                    push_entity(obstacle_entity, .obstacles)
-                    placement_unnormalized_rectangle = rl.Rectangle{0,0,0,0}
-                }
-                else if rl.IsMouseButtonPressed(.LEFT) {
-                    using placement_unnormalized_rectangle
-                    x = world_mouse_pos.x
-                    y = world_mouse_pos.y
-
-                } else if rl.IsMouseButtonDown(.LEFT) {
-                    using placement_unnormalized_rectangle
-                    if x != 0 && y != 0 {
-                        width = world_mouse_pos.x - x
-                        height = world_mouse_pos.y - y
-                    }
-                }
-                else if rl.IsMouseButtonPressed(.RIGHT) {
-                    // delete any colliding obstacles
-                    for entity_id in views[.obstacles].indices {
-                        entity := entity_backing_memory[entity_id]
-                        did_mouse_rectangle_intersect := rl.CheckCollisionPointRec(world_mouse_pos, entity.rect)
-
-                        if did_mouse_rectangle_intersect {
-                            remove_entity(entity_id, .obstacles)
-                        }
-                    }
-                }
-            }
+            case .obstacle: editor_handle_input_for_placement_rectangle_and_rectangular_entity_creation(.obstacles, world_mouse_pos)
+            case .end_goal: editor_handle_input_for_placement_rectangle_and_rectangular_entity_creation(.end_goals, world_mouse_pos, .green)
             case .none: {}
             }
 
