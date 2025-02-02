@@ -21,7 +21,7 @@ colors := [Color][4]u8{
     .purple = { 100, 0, 255, 255 },
     .red = { 255, 0, 0, 255 },
     .light_grey = { 200, 200, 200, 255 },
-    .green = { 0, 255, 0, 255 },
+    .green = { 0, 200, 0, 255 },
     .gold = { 255, 215, 0, 255 },
     .white = { 255, 255, 255, 255 },
 }
@@ -546,9 +546,20 @@ main :: proc() {
             entity.y += entity.velocity.y * delta_time
         }
 
-        for entity_id in views[.bubbles].indices { // "pop" bubbles if they touch an obstacle
-            entity := &entity_backing_memory[entity_id]
-            for obstacle_id in views[.obstacles].indices {
+        for bubble_id in views[.bubbles].indices { // "pop" bubbles if they touch an obstacle or get too small
+            entity := &entity_backing_memory[bubble_id]
+            if entity.radius < 0.003 { // too small
+                // NOTE(felix): I tried using remove_entity() here but got weird behaviour which could have been a miscompilation
+                index, found := slice.linear_search(views[.bubbles].indices[:], bubble_id)
+                if found do unordered_remove(&views[.bubbles].indices, index)
+
+                entity.pop_anim_time_amount = 0.25
+                entity.pop_anim_timer = entity.pop_anim_time_amount
+
+                append_elem(&views[.popping_bubbles].indices, bubble_id)
+                continue
+            }
+            for obstacle_id in views[.obstacles].indices { // touches obstacle
                 obstacle := entity_backing_memory[obstacle_id]
 
                 screen_bubble_pos := screen_from_world([2]f32{ entity.x, entity.y })
@@ -558,13 +569,33 @@ main :: proc() {
                 did_bubble_collide_with_obstacle := rl.CheckCollisionCircleRec([2]f32{screen_bubble_pos.x, screen_bubble_pos.y}, screen_bubble_radius, screen_obstacle_rectangle)
                 if did_bubble_collide_with_obstacle {
                     // NOTE(felix): I tried using remove_entity() here but got weird behaviour which could have been a miscompilation
-                    index, found := slice.linear_search(views[.bubbles].indices[:], entity_id)
+                    index, found := slice.linear_search(views[.bubbles].indices[:], bubble_id)
                     if found do unordered_remove(&views[.bubbles].indices, index)
 
                     entity.pop_anim_time_amount = 0.25
                     entity.pop_anim_timer = entity.pop_anim_time_amount
 
-                    append_elem(&views[.popping_bubbles].indices, entity_id)
+                    append_elem(&views[.popping_bubbles].indices, bubble_id)
+                    break
+                }
+            }
+            for end_goal_index in views[.end_goals].indices { // touches end goal
+                end_goal_entity := &entity_backing_memory[end_goal_index]
+                screen_bubble_pos := screen_from_world([2]f32{ entity.x, entity.y })
+                screen_bubble_radius := screen_from_world(entity.radius)
+                screen_end_goal_rectangle := screen_from_world(end_goal_entity.rect)
+
+                did_bubble_collide_with_end_goal := rl.CheckCollisionCircleRec([2]f32{screen_bubble_pos.x, screen_bubble_pos.y}, screen_bubble_radius, screen_end_goal_rectangle)
+                if did_bubble_collide_with_end_goal {
+                    index, found := slice.linear_search(views[.bubbles].indices[:], bubble_id)
+                    if found do unordered_remove(&views[.bubbles].indices, index)
+                    entity.pop_anim_time_amount = 0.25
+                    entity.pop_anim_timer = entity.pop_anim_time_amount
+                    append_elem(&views[.popping_bubbles].indices, bubble_id)
+                    index, found = slice.linear_search(views[.end_goals].indices[:], end_goal_index)
+                    if found do unordered_remove(&views[.end_goals].indices, index)
+                    end_goal_entity.color = .gold
+                    append_elem(&views[.end_goals_completed].indices, end_goal_index)
                     break
                 }
             }
@@ -575,7 +606,12 @@ main :: proc() {
             entity.pop_anim_timer -= delta_time
             entity.radius += delta_time * 0.5
             if entity.pop_anim_timer <= 0 {
-                remove_entity(entity_id, .popping_bubbles)
+                index, found := slice.linear_search(views[.popping_bubbles].indices[:], entity_id)
+                if found do unordered_remove(&views[.popping_bubbles].indices, index)
+                index, found = slice.linear_search(views[.active].indices[:], entity_id)
+                if found do unordered_remove(&views[.active].indices, index)
+                append_elem(&views[.freelist].indices, entity_id)
+                
             }
         }
 
@@ -600,10 +636,7 @@ main :: proc() {
             rl.DrawCircleV(screen_pos, screen_radius, auto_cast colors[bubble.color])
         }
 
-        { // draw end goals
-
-        }
-
+        
 
         { // draw placement rectangle
             obstacle_placement_rectangle := absolute_normalized_rectangle(obstacle_placement_unnormalized_rectangle)
