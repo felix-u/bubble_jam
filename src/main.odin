@@ -7,15 +7,18 @@ import "core:math"
 import "core:mem"
 import la "core:math/linalg"
 import "core:fmt"
+import "core:os"
+import "core:encoding/json"
 
 breakpoint :: intrinsics.debug_trap
 
 game_name :: "bubble"
 
-Color :: enum { black, blue, purple, red, white, light_grey, green, gold }
+Color :: enum { black, blue, dark_blue, purple, red, white, light_grey, green, gold }
 colors := [Color][4]u8{
     .black = { 0, 0, 0, 255 },
     .blue = { 0, 0, 255, 255 },
+    .dark_blue = { 0, 50, 150, 255 },
     .purple = { 100, 0, 255, 255 },
     .red = { 255, 0, 0, 255 },
     .light_grey = { 200, 200, 200, 255 },
@@ -59,110 +62,85 @@ View_Id :: enum {
 }
 
 Level :: struct {
-    name: string,
-    entities: map[View_Id][dynamic]Entity
+    name: cstring,
+    gun_initial_position: [2]f32,
+    gun_id: Entity_Index,
+    obstacles: [dynamic]Entity,
+    end_goals: [dynamic]Entity,
+    bubbles: [dynamic]Entity,
+    hint: cstring,
 }
 
-curr_level_index := 0
-NUM_LEVELS :: 2
+current_level_index := 0
+NUM_LEVELS :: 10
 
-levels_init :: proc() -> [NUM_LEVELS]Level {
-    levels := [NUM_LEVELS]Level{
-        {
-            name = "level 1",
-            entities = map[View_Id][dynamic]Entity{
-                .bubbles = [dynamic]Entity{
-                    Entity{
-                        x = 0.5,
-                        y = 0.1,
-                        width = 0.05,
-                        color = .red,
-                    },
-                },
-                .obstacles = [dynamic]Entity{
-                    Entity{
-                        x = 0.3,
-                        y = 0.3,
-                        width = 0.1,
-                        height = 0.1,
-                        color = .black,
-                    },
-                },
-                .end_goals = [dynamic]Entity{
-                    Entity{
-                        x = 0.7,
-                        y = 0.1,
-                        width = 0.1,
-                        height = 0.1,
-                        color = .green,
-                    },
-                    Entity{
-                        x = 0.7,
-                        y = 0.3,
-                        width = 0.1,
-                        height = 0.1,
-                        color = .green,
-                    }
-                },
-            },
-        },
-        {
-            name = "level 2",
-            entities = map[View_Id][dynamic]Entity{
-                .bubbles = [dynamic]Entity{
-                    Entity{
-                        x = 0.2,
-                        y = 0.3,
-                        width = 0.05,
-                        color = .red,
-                    },
-                },
-                .obstacles = [dynamic]Entity{
-                    Entity{
-                        x = 0.3,
-                        y = 0.3,
-                        width = 0.1,
-                        height = 0.1,
-                        color = .black,
-                    },
-                },
-                .end_goals = [dynamic]Entity{
-                    Entity{
-                        x = 0.7,
-                        y = 0.1,
-                        width = 0.1,
-                        height = 0.1,
-                        color = .green,
-                    },
-                },
-            },
-        },
+gun_width :: 0.02
+gun_initial_state :: Entity{
+    // NOTE(felix): position is set per-level
+    width = gun_width, height = gun_width,
+    color = .purple,
+}
 
+levels : [NUM_LEVELS]Level
+
+
+level_data_filename := "data.json"
+
+write_levels_to_json_file :: proc() {
+    json_opts := json.Marshal_Options{pretty=true,}
+    json_data, err := json.marshal(levels, opt = json_opts, allocator = context.temp_allocator)
+    if err != nil {
+        fmt.eprintf("error marshalling json: %v\n", err)
+        return
     }
-    return levels
+    file_name := level_data_filename
+    ok := os.write_entire_file(file_name, json_data)
+    if !ok {
+        fmt.eprintf("error writing to file: %v\n", file_name)
+        return
+    }
 }
-levels := levels_init()
+
+read_levels_from_json_file :: proc() {
+    file_name := level_data_filename
+    json_data, ok := os.read_entire_file(file_name)
+    if !ok {
+        fmt.eprintf("error reading from file: %v\n", file_name)
+        return
+    }
+    err := json.unmarshal(json_data, &levels)
+    if err != nil {
+        fmt.eprintf("error unmarshalling json: %v\n", err)
+        return
+    }
+}
 
 
 
 reset_entities_from_level :: proc() {
     for view_id in View_Id {
         non_zero_resize(&views[view_id].indices, 0)
-        non_zero_resize(&views[view_id].indices, 0)
-        non_zero_resize(&views[view_id].indices, 0)
-        non_zero_resize(&views[view_id].indices, 0)
-        non_zero_resize(&views[view_id].indices, 0)
-        non_zero_resize(&views[view_id].indices, 0)
-        non_zero_resize(&views[view_id].indices, 0)
     }
 
     for i in 1 ..< ENTITY_CAP do append_elem(&views[.freelist].indices, cast(Entity_Index) i)
 
-    for view_id, entities in levels[curr_level_index].entities {
-        for entity in entities {
-            push_entity(entity, view_id)
-        }
+    level := &levels[current_level_index]
+
+    for entity in level.obstacles {
+        push_entity(entity, .obstacles)
     }
+    for entity in level.end_goals {
+        push_entity(entity, .end_goals)
+    }
+    for entity in level.bubbles {
+        push_entity(entity, .bubbles)
+    }
+
+    gun := gun_initial_state
+    gun.x = level.gun_initial_position.x
+    gun.y = level.gun_initial_position.y
+
+    level.gun_id = push_entity(gun, .guns)
 }
 
 Entity_Edit_Mode :: enum {
@@ -234,7 +212,7 @@ remove_entity :: proc(entity_id: Entity_Index, view_ids: ..View_Id, free: bool =
     }
 }
 
-screen_size := [2]f32{ 960, 540 }
+screen_size := [2]f32{ 1200, 675 }
 screen_from_world_scalar: f32
 screen_margin_y: f32
 dpi: f32 = 1
@@ -329,6 +307,78 @@ create_pop_ripple_from_circle :: proc(pos: [2]f32, radius: f32, color: Color) {
     push_entity(new_popping_bubble, .popping_bubbles)
 }
 
+editor_handle_input_for_placement_rectangle_and_rectangular_entity_creation  :: proc(view_id: View_Id, world_mouse_pos: [2]f32, color_for_creation: Color = .black)
+{
+    if rl.IsMouseButtonReleased(.LEFT) && placement_unnormalized_rectangle.width != 0 && placement_unnormalized_rectangle.height != 0 {
+        using normalized_rectangle_to_place := absolute_normalized_rectangle(placement_unnormalized_rectangle)
+
+        clamp_low :: max
+        width = clamp_low(width, cell_size)
+        height = clamp_low(height, cell_size)
+
+        snap_adjusted_normalized_rectangle_to_place := snap_rectangle_to_grid(normalized_rectangle_to_place)
+        entity := Entity{
+            rect = snap_adjusted_normalized_rectangle_to_place,
+            color = color_for_creation,
+        }
+        push_entity(entity, view_id)
+        placement_unnormalized_rectangle = rl.Rectangle{0,0,0,0}
+    }
+    else if rl.IsMouseButtonPressed(.LEFT) {
+        using placement_unnormalized_rectangle
+        x = world_mouse_pos.x
+        y = world_mouse_pos.y
+    } else if rl.IsMouseButtonDown(.LEFT) {
+        using placement_unnormalized_rectangle
+        if x != 0 && y != 0 {
+            width = world_mouse_pos.x - x
+            height = world_mouse_pos.y - y
+        }
+    }
+    else if rl.IsMouseButtonPressed(.RIGHT) {
+        for entity_id in views[view_id].indices {
+            entity := entity_backing_memory[entity_id]
+            did_mouse_rectangle_intersect := rl.CheckCollisionPointRec(world_mouse_pos, entity.rect)
+
+            if did_mouse_rectangle_intersect {
+                remove_entity(entity_id, view_id)
+            }
+        }
+    }
+}
+
+level_transition_state: struct {
+    active: bool,
+    using non_text_related: struct {
+        old_level_index, new_level_index: int,
+        curtain: rl.Rectangle,
+        curtain_color: Color,
+        render_curtain: bool,
+    },
+    text: cstring,
+    opacity: int,
+    text_fading: enum { in_, out },
+    text_still_fading: bool,
+}
+
+begin_transition_to_level :: proc(new_level_index: int) {
+    assert(new_level_index < NUM_LEVELS)
+
+    level_transition_state = {
+        active = true,
+        old_level_index = current_level_index,
+        new_level_index = new_level_index,
+        curtain = { x = -1, width = 1, height = world_height },
+        render_curtain = true,
+    }
+
+    using level_transition_state
+    retrying_same_level := new_level_index == current_level_index
+
+    curtain_color = .red if retrying_same_level else .blue
+    text = "again!" if retrying_same_level else levels[new_level_index].name
+}
+
 main :: proc() {
     when ODIN_DEBUG { 	// memory leak tracking
 		track: mem.Tracking_Allocator
@@ -391,25 +441,10 @@ main :: proc() {
     target_fps := rl.GetMonitorRefreshRate(rl.GetCurrentMonitor())
     rl.SetTargetFPS(target_fps)
     rl.MaximizeWindow()
+    rl.RestoreWindow()
 
-    gun_width :: 0.02
-    gun_initial_state :: Entity{
-        x = 0.5 - gun_width / 2,
-        y = 0,
-        width = gun_width,
-        height = gun_width,
-        color = .purple,
-    }
-    gun_id := push_entity(gun_initial_state, .guns)
-
-    initial_bubble_radius :: 0.05
-    bubble_initial_state := Entity{
-        x = 0.5,
-        y = 0.3,
-        width = initial_bubble_radius,
-        color = .blue,
-    }
-    push_entity(bubble_initial_state, .bubbles)
+    read_levels_from_json_file()
+    reset_entities_from_level()
 
     for !rl.WindowShouldClose() {
         if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.B) {
@@ -452,6 +487,11 @@ main :: proc() {
                     bubble_placement_circle = [3]f32{0,0,0}
                 }
                 if rl.IsMouseButtonDown(.LEFT) {
+                    snap_to_vertical_center := rl.IsKeyDown(.C)
+                    if snap_to_vertical_center {
+                        bubble_placement_circle.y = world_height / 2
+                    }
+
                     vector_from_center_to_mouse := [2]f32{world_mouse_pos.x - bubble_placement_circle[0], world_mouse_pos.y - bubble_placement_circle[1]}
                     length := la.length(vector_from_center_to_mouse)
                     bubble_placement_circle[2] = length
@@ -466,129 +506,54 @@ main :: proc() {
                     }
                 }
             }
-            case .obstacle:
-            {
-                if rl.IsMouseButtonReleased(.LEFT) && placement_unnormalized_rectangle.width != 0 && placement_unnormalized_rectangle.height != 0 {
-
-                    obstacle_rectangle := absolute_normalized_rectangle(placement_unnormalized_rectangle)
-                    if obstacle_rectangle.width < cell_size {
-                        obstacle_rectangle.width = cell_size
-                    }
-                    if obstacle_rectangle.height < cell_size {
-                        obstacle_rectangle.height = cell_size
-                    }
-                    snap_adjusted_obstacle_rectangle := snap_rectangle_to_grid(obstacle_rectangle)
-                    obstacle_entity := Entity{
-                        x = snap_adjusted_obstacle_rectangle.x,
-                        y = snap_adjusted_obstacle_rectangle.y,
-                        width = snap_adjusted_obstacle_rectangle.width,
-                        height = snap_adjusted_obstacle_rectangle.height,
-                        color = .black,
-                    }
-                    push_entity(obstacle_entity, .obstacles)
-                    placement_unnormalized_rectangle = rl.Rectangle{0,0,0,0}
-                }
-                else if rl.IsMouseButtonPressed(.LEFT) {
-                    using placement_unnormalized_rectangle
-                    x = world_mouse_pos.x
-                    y = world_mouse_pos.y
-
-                } else if rl.IsMouseButtonDown(.LEFT) {
-                    using placement_unnormalized_rectangle
-                    if x != 0 && y != 0 {
-                        width = world_mouse_pos.x - x
-                        height = world_mouse_pos.y - y
-                    }
-                }
-                else if rl.IsMouseButtonPressed(.RIGHT) {
-                    // delete any colliding obstacles
-                    for entity_id in views[.obstacles].indices {
-                        entity := entity_backing_memory[entity_id]
-                        did_mouse_rectangle_intersect := rl.CheckCollisionPointRec(world_mouse_pos, entity.rect)
-
-                        if did_mouse_rectangle_intersect {
-                            remove_entity(entity_id, .obstacles)
-                        }
-                    }
-                }
-            }
-            case .end_goal:
-            {
-                if rl.IsMouseButtonReleased(.LEFT) && placement_unnormalized_rectangle.width != 0 && placement_unnormalized_rectangle.height != 0 {
-
-                    obstacle_rectangle := absolute_normalized_rectangle(placement_unnormalized_rectangle)
-                    if obstacle_rectangle.width < cell_size {
-                        obstacle_rectangle.width = cell_size
-                    }
-                    if obstacle_rectangle.height < cell_size {
-                        obstacle_rectangle.height = cell_size
-                    }
-                    snap_adjusted_obstacle_rectangle := snap_rectangle_to_grid(obstacle_rectangle)
-                    obstacle_entity := Entity{
-                        x = snap_adjusted_obstacle_rectangle.x,
-                        y = snap_adjusted_obstacle_rectangle.y,
-                        width = snap_adjusted_obstacle_rectangle.width,
-                        height = snap_adjusted_obstacle_rectangle.height,
-                        color = .green,
-                    }
-                    push_entity(obstacle_entity, .obstacles)
-                    placement_unnormalized_rectangle = rl.Rectangle{0,0,0,0}
-                }
-                else if rl.IsMouseButtonPressed(.LEFT) {
-                    using placement_unnormalized_rectangle
-                    x = world_mouse_pos.x
-                    y = world_mouse_pos.y
-
-                } else if rl.IsMouseButtonDown(.LEFT) {
-                    using placement_unnormalized_rectangle
-                    if x != 0 && y != 0 {
-                        width = world_mouse_pos.x - x
-                        height = world_mouse_pos.y - y
-                    }
-                }
-                else if rl.IsMouseButtonPressed(.RIGHT) {
-                    // delete any colliding obstacles
-                    for entity_id in views[.obstacles].indices {
-                        entity := entity_backing_memory[entity_id]
-                        did_mouse_rectangle_intersect := rl.CheckCollisionPointRec(world_mouse_pos, entity.rect)
-
-                        if did_mouse_rectangle_intersect {
-                            remove_entity(entity_id, .obstacles)
-                        }
-                    }
-                }
-            }
+            case .obstacle: editor_handle_input_for_placement_rectangle_and_rectangular_entity_creation(.obstacles, world_mouse_pos)
+            case .end_goal: editor_handle_input_for_placement_rectangle_and_rectangular_entity_creation(.end_goals, world_mouse_pos, .green)
             case .none: {}
             }
 
             if rl.IsKeyPressed(.F8) { // save to levels
-                for view_id, &entity_dynamic_array in levels[curr_level_index].entities {
-                    non_zero_resize(&entity_dynamic_array, 0)
-                    for entity_id in views[view_id].indices {
-                        entity := entity_backing_memory[entity_id]
-                        append_elem(&entity_dynamic_array, entity)
-                    }
+                level := &levels[current_level_index]
+
+                non_zero_resize(&level.bubbles, 0)
+                non_zero_resize(&level.obstacles, 0)
+                non_zero_resize(&level.end_goals, 0)
+
+                gun_rect := entity_backing_memory[level.gun_id].rect
+                level.gun_initial_position = { gun_rect.x, gun_rect.y }
+
+                for entity_id in views[.bubbles].indices {
+                    entity := entity_backing_memory[entity_id]
+                    append_elem(&level.bubbles, entity)
+                }
+                for entity_id in views[.obstacles].indices {
+                    entity := entity_backing_memory[entity_id]
+                    append_elem(&level.obstacles, entity)
+                }
+                for entity_id in views[.end_goals].indices {
+                    entity := entity_backing_memory[entity_id]
+                    append_elem(&level.end_goals, entity)
                 }
                 save_screen_flash_timer = save_screen_flash_time_amount
+
+                write_levels_to_json_file()
             }
 
             if rl.IsKeyPressed(.F9) { // reset current level
                 reset_entities_from_level()
             }
 
-
-            { // level switching
-                input_level_one_requested := rl.IsKeyPressed(.ONE)
-                input_level_two_requested := rl.IsKeyPressed(.TWO)
-
-                if input_level_one_requested {
-                    curr_level_index = 0
-                    reset_entities_from_level()
+            level_select: { // level switching
+                level_number := 0
+                for digit in 1..=9 {
+                    if !rl.IsKeyPressed(auto_cast ('0' + digit)) do continue
+                    level_number = digit
+                    break
                 }
-                if input_level_two_requested {
-                    curr_level_index = 1
-                    reset_entities_from_level()
-                }
+                if level_number == 0 do break level_select
+                assert(level_number <= NUM_LEVELS)
+
+                selected_level_index := level_number - 1
+                begin_transition_to_level(selected_level_index)
             }
 
             for edit_mode in Entity_Edit_Mode { // change edit mode
@@ -598,7 +563,8 @@ main :: proc() {
             }
         }
 
-        gun := &entity_backing_memory[gun_id]
+        level := &levels[current_level_index]
+        gun := &entity_backing_memory[level.gun_id]
 
         gun_move_speed_factor :: 0.7
         gun_move_speed := delta_time * gun_move_speed_factor
@@ -629,6 +595,24 @@ main :: proc() {
                 if gun.x == 0 do gun.x += gun_move_speed
                 else do gun.x -= gun_move_speed
             }
+        }
+
+        if rl.IsKeyPressed(.SPACE) {
+            if gun_on_horizontal_edge {
+                if gun.y == 0 do gun.y = max_y(gun)
+                else if gun.y == max_y(gun) do gun.y = 0
+            } else if gun_on_vertical_edge {
+                if gun.x == 0 do gun.x = max_x(gun)
+                else if gun.x == max_x(gun) do gun.x = 0
+            }
+
+            create_pop_ripple_from_circle([2]f32{gun.x, gun.y}, gun.width, gun.color)
+        }
+
+        snap_to_edge_center := rl.IsKeyPressed(.C) && !rl.IsMouseButtonDown(.LEFT)
+        if snap_to_edge_center {
+            if gun_on_horizontal_edge do gun.x = 0.5
+            else do gun.y = world_height / 2
         }
 
         gun.x = clamp(gun.x, 0, max_x(gun))
@@ -754,7 +738,7 @@ main :: proc() {
                 if did_bubble_collide_with_obstacle {
                     new_popping_bubble := entity^
                     create_pop_ripple_from_circle([2]f32{new_popping_bubble.x, new_popping_bubble.y}, new_popping_bubble.width, new_popping_bubble.color)
-                
+
                     remove_entity(bubble_id, .bubbles, free = true)
 
                     entity.pop_anim_time_amount = 0.25
@@ -841,18 +825,29 @@ main :: proc() {
             rl.DrawCircle(i32(screen_bubble_placement_circle.x), i32(screen_bubble_placement_circle.y), screen_bubble_placement_circle.z, auto_cast transparent_blue)
         }
 
-        { // draw game over text when all bubbles gone
-            if len(views[.bubbles].indices) == 0 {
-                draw_text("Game Over", [2]f32{0.2, 0.2}, 0.1, .black)
-            }
+        won := len(views[.end_goals].indices) == 0
+        won &&= !level_transition_state.active
+        won &&= current_entity_edit_mode == .none
+        if won {
+            new_level_index := (current_level_index + 1) % NUM_LEVELS
+            begin_transition_to_level(new_level_index)
         }
 
-        { // go to next level with wrap if all end_goals are gone
-            if len(views[.end_goals].indices) == 0 {
-                curr_level_index = (curr_level_index + 1) % NUM_LEVELS
-                reset_entities_from_level()
-            }
+        lost := !won && len(views[.bubbles].indices) == 0
+        lost &&= !level_transition_state.active
+        lost &&= current_entity_edit_mode == .none
+
+        voluntary_quick_redo := rl.IsKeyPressed(.R)
+        redo := lost || voluntary_quick_redo
+
+        if redo {
+            begin_transition_to_level(current_level_index)
         }
+
+
+        hint_font_size: f32 = 0.03
+        padding := [2]f32{ hint_font_size * 0.75, hint_font_size * 1.5 }
+        draw_text(level.hint, { padding.x, world_height - padding.y }, hint_font_size)
 
         { // draw debug visualizer
             // draw small circle where mouse is being held down with left click
@@ -864,6 +859,60 @@ main :: proc() {
         }
 
         draw_grid(cell_size)
+
+        level_transition_animation: {
+            using level_transition_state
+
+            level_transition_speed :: 4
+            text_fade_amount :: level_transition_speed
+
+            handle_curtain: if active {
+                text_still_fading = true
+
+                old_curtain_x := curtain.x
+                if (curtain.x >= 1) {
+                    level_transition_state.non_text_related = {}
+                    break handle_curtain
+                }
+
+                curtain.x += level_transition_speed * delta_time
+
+                if old_curtain_x < 0 && 0 <= curtain.x {
+                    current_level_index = new_level_index
+                    reset_entities_from_level()
+                }
+            }
+
+            if render_curtain {
+                rl.DrawRectangleRec(screen_from_world(curtain), auto_cast colors[curtain_color])
+            }
+
+            if text_still_fading {
+                opacity += text_fade_amount * 4 if text_fading == .in_ else -text_fade_amount
+                opacity = clamp(0, opacity, 255)
+
+                font_size :: 50
+                text_width_screen := cast(f32) rl.MeasureText(text, font_size)
+                pad: f32 : 0.05
+                text_position := [2]f32{
+                    screen_from_world(pad),
+                    screen_from_world(world_height - pad) - font_size
+                }
+                rectangle_color := colors[.white]
+                rectangle_color.a = auto_cast opacity
+
+                text_color := colors[.dark_blue]
+                text_color.a = rectangle_color.a
+                rl.DrawRectangleRec({ x = text_position.x - screen_from_world(pad / 2), y = text_position.y, width = text_width_screen + screen_from_world(pad / 2), height = font_size }, auto_cast rectangle_color)
+                rl.DrawTextEx(rl.GetFontDefault(), text, text_position, font_size, 1, auto_cast text_color)
+
+                if text_fading == .in_ && opacity == 255 do text_fading = .out
+                else if text_fading == .out && opacity == 0 {
+                    text_still_fading = false
+                    active = false
+                }
+            }
+        }
 
         boundary_color := rl.Color{ 255, 0, 0, 150 }
         thickness_world :: 0.01

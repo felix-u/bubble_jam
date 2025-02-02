@@ -1,0 +1,385 @@
+[
+	{
+		"name": "1. Poparazzi",
+		"gun_initial_position": [
+			0.17833194,
+			0.00000000
+		],
+		"gun_id": 55,
+		"obstacles": [
+			{
+				"rect": {
+					"x": 0.30000001,
+					"y": 0.30000001,
+					"width": 0.10000000,
+					"height": 0.10000000
+				},
+				"velocity": [
+					0.00000000,
+					0.00000000
+				],
+				"accel": [
+					0.00000000,
+					0.00000000
+				],
+				"color": 0,
+				"pop_anim_timer": 0.00000000,
+				"pop_anim_time_amount": 0.00000000
+			},
+			{
+				"rect": {
+					"x": 0.07812500,
+					"y": 0.20312500,
+					"width": 0.06250000,
+					"height": 0.12500000
+				},
+				"velocity": [
+					0.00000000,
+					0.00000000
+				],
+				"accel": [
+					0.00000000,
+					0.00000000
+				],
+				"color": 0,
+				"pop_anim_timer": 0.00000000,
+				"pop_anim_time_amount": 0.00000000
+			},
+			{
+				"rect": {
+					"x": 0.18750000,
+					"y": 0.15625000,
+					"width": 0.10937500,
+					"height": 0.09375000
+				},
+				"velocity": [
+					0.00000000,
+					0.00000000
+				],
+				"accel": [
+					0.00000000,
+					0.00000000
+				],
+				"color": 0,
+				"pop_anim_timer": 0.00000000,
+				"pop_anim_time_amount": 0.00000000
+			}
+		],
+		"end_goals": [
+			{
+				"rect": {
+					"x": 0.69999999,
+					"y": 0.10000000,
+					"width": 0.10000000,
+					"height": 0.10000000
+				},
+				"velocity": [
+					0.00000000,
+					0.00000000
+				],
+				"accel": [
+					0.00000000,
+					0.00000000
+				],
+				"color": 7,
+				"pop_anim_timer": 0.00000000,
+				"pop_anim_time_amount": 0.00000000
+			},
+			{
+				"rect": {
+					"x": 0.69999999,
+					"y": 0.30000001,
+					"width": 0.10000000,
+					"height": 0.10000000
+				},
+				"velocity": [
+					0.00000000,
+					0.00000000
+				],
+				"accel": [
+					0.00000000,
+					0.00000000
+				],
+				"color": 7,
+				"pop_anim_timer": 0.00000000,
+				"pop_anim_time_amount": 0.00000000
+			}
+		],
+		"bubbles": [
+			{
+				"rect": {
+					"x": 0.50000000,
+					"y": 0.10000000,
+					"width": 0.05000000,
+					"height": 0.00000000
+				},
+				"velocity": [
+					0.00000000,
+					0.00000000
+				],
+				"accel": [
+					0.00000000,
+					0.00000000
+				],
+				"color": 4,
+				"pop_anim_timer": 0.00000000,
+				"pop_anim_time_amount": 0.00000000
+			},
+			{
+				"rect": {
+					"x": 0.14916667,
+					"y": 0.40583333,
+					"width": 0.04139913,
+					"height": 0.00000000
+				},
+				"velocity": [
+					0.00000000,
+					0.00000000
+				],
+				"accel": [
+					0.00000000,
+					0.00000000
+				],
+				"color": 1,
+				"pop_anim_timer": 0.00000000,
+				"pop_anim_time_amount": 0.00000000
+			},
+			{
+				"rect": {
+					"x": 0.19583334,
+					"y": 0.47083333,
+					"width": 0.04321297,
+					"height": 0.00000000
+				},
+				"velocity": [
+					0.00000000,
+					0.00000000
+				],
+				"accel": [
+					0.00000000,
+					0.00000000
+				],
+				"color": 1,
+				"pop_anim_timer": 0.00000000,
+				"pop_anim_time_amount": 0.00000000
+			}
+		],
+		"hint": "left click"
+	},
+	{
+		"name": "2. Don't Pop Believin'",
+		"gun_initial_position": [
+			0.71166956,
+			0.54250002
+		],
+		"gun_id": 60,
+		"obstacles": [
+			{
+				"rect": {
+					"x": 0.32812500,
+					"y": 0.18750000,
+					"width": 0.15625000,
+					"height": 0.15625000
+				},
+				"velocity": [
+					0.00000000,
+					0.00000000
+				],
+				"accel": [
+					0.00000000,
+					0.00000000
+				],
+				"color": 0,
+				"pop_anim_timer": 0.00000000,
+				"pop_anim_time_amount": 0.00000000
+			}
+		],
+		"end_goals": [
+			{
+				"rect": {
+					"x": 0.69999999,
+					"y": 0.10000000,
+					"width": 0.10000000,
+					"height": 0.10000000
+				},
+				"velocity": [
+					0.00000000,
+					0.00000000
+				],
+				"accel": [
+					0.00000000,
+					0.00000000
+				],
+				"color": 7,
+				"pop_anim_timer": 0.00000000,
+				"pop_anim_time_amount": 0.00000000
+			}
+		],
+		"bubbles": [
+			{
+				"rect": {
+					"x": 0.15583333,
+					"y": 0.10500000,
+					"width": 0.03778596,
+					"height": 0.00000000
+				},
+				"velocity": [
+					0.00000000,
+					0.00000000
+				],
+				"accel": [
+					0.00000000,
+					0.00000000
+				],
+				"color": 1,
+				"pop_anim_timer": 0.00000000,
+				"pop_anim_time_amount": 0.00000000
+			}
+		],
+		"hint": ""
+	},
+	{
+		"name": "3. Don't Pop Me Now",
+		"gun_initial_position": [
+			0.00000000,
+			0.00000000
+		],
+		"gun_id": 63,
+		"obstacles": [
+
+		],
+		"end_goals": [
+
+		],
+		"bubbles": [
+
+		],
+		"hint": ""
+	},
+	{
+		"name": "4. Popular",
+		"gun_initial_position": [
+			0.00000000,
+			0.00000000
+		],
+		"gun_id": 63,
+		"obstacles": [
+
+		],
+		"end_goals": [
+
+		],
+		"bubbles": [
+
+		],
+		"hint": ""
+	},
+	{
+		"name": "5. Pop off",
+		"gun_initial_position": [
+			0.00000000,
+			0.00000000
+		],
+		"gun_id": 63,
+		"obstacles": [
+
+		],
+		"end_goals": [
+
+		],
+		"bubbles": [
+
+		],
+		"hint": ""
+	},
+	{
+		"name": "6. Pop goes the weasel",
+		"gun_initial_position": [
+			0.00000000,
+			0.00000000
+		],
+		"gun_id": 63,
+		"obstacles": [
+
+		],
+		"end_goals": [
+
+		],
+		"bubbles": [
+
+		],
+		"hint": ""
+	},
+	{
+		"name": "7. Pop the question",
+		"gun_initial_position": [
+			0.00000000,
+			0.00000000
+		],
+		"gun_id": 63,
+		"obstacles": [
+
+		],
+		"end_goals": [
+
+		],
+		"bubbles": [
+
+		],
+		"hint": ""
+	},
+	{
+		"name": "8. Poppy",
+		"gun_initial_position": [
+			0.00000000,
+			0.00000000
+		],
+		"gun_id": 63,
+		"obstacles": [
+
+		],
+		"end_goals": [
+
+		],
+		"bubbles": [
+
+		],
+		"hint": ""
+	},
+	{
+		"name": "9. Popcorn",
+		"gun_initial_position": [
+			0.00000000,
+			0.00000000
+		],
+		"gun_id": 63,
+		"obstacles": [
+
+		],
+		"end_goals": [
+
+		],
+		"bubbles": [
+
+		],
+		"hint": ""
+	},
+	{
+		"name": "10. Soda pop",
+		"gun_initial_position": [
+			0.00000000,
+			0.00000000
+		],
+		"gun_id": 0,
+		"obstacles": [
+
+		],
+		"end_goals": [
+
+		],
+		"bubbles": [
+
+		],
+		"hint": ""
+	}
+]
