@@ -18,8 +18,10 @@ target:
 
 recent_file: "../../../../../appfolders/odin/base/runtime/entry_windows.odin"
 recent_file: "../../../../../appfolders/odin/base/runtime/core_builtin.odin"
-recent_file: "src/main.odin"
 recent_file: "../../../../../appfolders/odin/base/runtime/core.odin"
+recent_file: "../../../../../appfolders/odin/base/runtime/procs_windows_amd64.odin"
+recent_file: "../../../../../appfolders/odin/base/runtime/error_checks.odin"
+recent_file: "src/main.odin"
 
 /// exception code filters ////////////////////////////////////////////////////
 
