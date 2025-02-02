@@ -12,10 +12,11 @@ breakpoint :: intrinsics.debug_trap
 
 game_name :: "bubble"
 
-Color :: enum { black, blue, purple, red, white, light_grey, green, gold }
+Color :: enum { black, blue, dark_blue, purple, red, white, light_grey, green, gold }
 colors := [Color][4]u8{
     .black = { 0, 0, 0, 255 },
     .blue = { 0, 0, 255, 255 },
+    .dark_blue = { 0, 50, 150, 255 },
     .purple = { 100, 0, 255, 255 },
     .red = { 255, 0, 0, 255 },
     .light_grey = { 200, 200, 200, 255 },
@@ -439,26 +440,10 @@ main :: proc() {
             curtain: rl.Rectangle,
             curtain_color: Color,
             render_curtain: bool,
-        }
-
-        level_transition: {
-            using level_transition_state
-            if old_level_index == new_level_index do break level_transition
-
-            old_curtain_x := curtain.x
-            if (curtain.x < 1) {
-                level_transition_speed :: 9
-                curtain.x += level_transition_speed * delta_time
-
-                if old_curtain_x < 0 && 0 <= curtain.x {
-                    curr_level_index = new_level_index
-                    reset_entities_from_level()
-                }
-
-                break level_transition
-            }
-
-            level_transition_state = {}
+            text: cstring,
+            opacity: int,
+            text_fading: enum { in_, out },
+            text_still_fading: bool,
         }
 
         { // ed
@@ -621,6 +606,7 @@ main :: proc() {
                     curtain = { x = -1, width = 1, height = world_height },
                     curtain_color = .blue,
                     render_curtain = true,
+                    text = levels[selected_level_index].name,
                 }
             }
 
@@ -898,9 +884,63 @@ main :: proc() {
 
         draw_grid(cell_size)
 
-        if level_transition_state.render_curtain {
+        level_transition_animation: {
             using level_transition_state
-            rl.DrawRectangleRec(screen_from_world(curtain), auto_cast colors[curtain_color])
+
+            level_transition_speed :: 7
+            text_fade_amount :: level_transition_speed
+
+            handle_curtain: if old_level_index != new_level_index {
+                text_still_fading = true
+
+                old_curtain_x := curtain.x
+                if (curtain.x >= 1) {
+                    text_backup := text
+                    opacity_backup := opacity
+
+                    level_transition_state = {}
+
+                    text = text_backup
+                    opacity = opacity_backup
+                    text_still_fading = true
+
+                    break handle_curtain
+                }
+
+                curtain.x += level_transition_speed * delta_time
+
+                if old_curtain_x < 0 && 0 <= curtain.x {
+                    curr_level_index = new_level_index
+                    reset_entities_from_level()
+                }
+            }
+
+            if render_curtain {
+                using level_transition_state
+                rl.DrawRectangleRec(screen_from_world(curtain), auto_cast colors[curtain_color])
+            }
+
+            if text_still_fading {
+                opacity += text_fade_amount * 4 if text_fading == .in_ else -text_fade_amount
+                opacity = clamp(0, opacity, 255)
+
+                font_size :: 100
+                text_width_screen := cast(f32) rl.MeasureText(text, font_size)
+                text_position := [2]f32{
+                    screen_from_world(cast(f32) 0.5) - text_width_screen / 2,
+                    screen_from_world(world_height / 2) - font_size / 2
+                }
+                color := colors[.white]
+                color.a = auto_cast opacity
+
+                rectangle_color := colors[.dark_blue]
+                rectangle_color.a = color.a
+                rl.DrawRectangleRec({ x = text_position.x - font_size / 4, y = text_position.y, width = text_width_screen, height = font_size }, auto_cast color)
+                rl.DrawTextEx(rl.GetFontDefault(), text, text_position, font_size, 1, auto_cast rectangle_color)
+
+                if text_fading == .in_ && opacity == 255 do text_fading = .out
+                else if text_fading == .out && opacity == 0 do text_still_fading = false
+            }
         }
 
         boundary_color := rl.Color{ 255, 0, 0, 150 }
