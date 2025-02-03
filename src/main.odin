@@ -337,7 +337,7 @@ editor_handle_input_for_placement_rectangle_and_rectangular_entity_creation  :: 
             height = world_mouse_pos.y - y
         }
     }
-    else if rl.IsMouseButtonPressed(.RIGHT) {
+    else if right_click_pressed() {
         for entity_id in views[view_id].indices {
             entity := entity_backing_memory[entity_id]
             did_mouse_rectangle_intersect := rl.CheckCollisionPointRec(world_mouse_pos, entity.rect)
@@ -398,6 +398,13 @@ track: mem.Tracking_Allocator
 temp_track: mem.Tracking_Allocator
 
 target_fps: c.int
+
+right_click_pressed :: proc() -> bool {
+    result := rl.IsMouseButtonPressed(.RIGHT)
+    // NOTE(felix): some people's browsers are stealing right click to open context menu, so we provide this alternative
+    result ||= rl.IsMouseButtonPressed(.LEFT) && rl.IsKeyDown(.LEFT_SHIFT)
+    return result
+}
 
 init :: proc() {
 
@@ -506,7 +513,7 @@ update :: proc() {
                 length := la.length(vector_from_center_to_mouse)
                 bubble_placement_circle[2] = length
             }
-            if rl.IsMouseButtonPressed(.RIGHT) {
+            if right_click_pressed() {
                 for bubble_id in views[.bubbles].indices {
                     bubble := entity_backing_memory[bubble_id]
                     did_mouse_circle_intersect := rl.CheckCollisionPointCircle(world_mouse_pos, [2]f32{bubble.x, bubble.y}, bubble.width)
@@ -631,7 +638,7 @@ update :: proc() {
     gun.y = clamp(gun.y, 0, max_y(gun))
 
     shoot_grower := !rl.IsKeyDown(.LEFT_SHIFT) && rl.IsMouseButtonPressed(.LEFT) && current_entity_edit_mode == .none
-    shoot_splitter := !rl.IsKeyDown(.LEFT_SHIFT) && rl.IsMouseButtonPressed(.RIGHT) && current_entity_edit_mode == .none
+    shoot_splitter := right_click_pressed() && current_entity_edit_mode == .none
     shoot_bullet := shoot_grower || shoot_splitter
     if shoot_bullet {
         gun_center := [2]f32{ gun.x + gun.width / 2, gun.y + gun.height / 2 }
