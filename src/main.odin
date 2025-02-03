@@ -431,6 +431,7 @@ init :: proc() {
 
     target_fps = rl.GetMonitorRefreshRate(rl.GetCurrentMonitor())
     target_fps = math.min(target_fps, 144) // I had a bug on my monitor which is a very high refresh rate of 240. 144 Hz is pretty standard high, so we just set it to that.
+
     rl.SetTargetFPS(target_fps)
     rl.MaximizeWindow()
     rl.RestoreWindow()
@@ -884,18 +885,18 @@ update :: proc() {
         using level_transition_state
 
         level_transition_speed :: 2
-        text_fade_amount :: level_transition_speed
+        text_fade_amount :: level_transition_speed * 80
 
         handle_curtain: if active {
             text_still_fading = true
 
             old_curtain_x := curtain.x
+            curtain.x += level_transition_speed * delta_time
+
             if (curtain.x >= 1) {
                 level_transition_state.non_text_related = {}
                 break handle_curtain
             }
-
-            curtain.x += level_transition_speed * delta_time
 
             if old_curtain_x < 0 && 0 <= curtain.x {
                 current_level_index = new_level_index
@@ -908,7 +909,9 @@ update :: proc() {
         }
 
         if text_still_fading {
-            opacity += text_fade_amount * 4 if text_fading == .in_ else -text_fade_amount
+            opacity_float := cast(f32) opacity
+            opacity_float += delta_time * (text_fade_amount * 4 if text_fading == .in_ else -text_fade_amount)
+            opacity = auto_cast opacity_float
             opacity = clamp(0, opacity, 255)
 
             font_size :: 50
