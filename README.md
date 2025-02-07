@@ -1,3 +1,5 @@
+Playable in-browser [here](https://jb-frog.itch.io/dont-pop-me-now).
+
 ## To Edit Levels:
 - Key Press = Modes:
     - B = Place Bubbles

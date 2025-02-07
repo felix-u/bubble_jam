@@ -268,7 +268,7 @@
 				"pop_anim_time_amount": 0.00000000
 			}
 		],
-		"hint": "right click"
+		"hint": "right click OR shift + left click"
 	},
 	{
 		"name": "5. Pop off",

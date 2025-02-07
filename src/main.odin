@@ -222,7 +222,7 @@ editor_handle_input_for_placement_rectangle_and_rectangular_entity_creation  :: 
             height = world_mouse_pos.y - y
         }
     }
-    else if rl.IsMouseButtonPressed(.RIGHT) {
+    else if right_click_pressed() {
         for entity_id in views[view_id].indices {
             entity := entity_backing_memory[entity_id]
             did_mouse_rectangle_intersect := rl.CheckCollisionPointRec(world_mouse_pos, entity.rect)
@@ -324,14 +324,16 @@ should_run :: proc() -> bool {
 	return run
 }
 
-
-
-
-
-
 target_fps: c.int
 track: mem.Tracking_Allocator
 temp_track: mem.Tracking_Allocator
+
+right_click_pressed :: proc() -> bool {
+    result := rl.IsMouseButtonPressed(.RIGHT)
+    // NOTE(felix): some people's browsers are stealing right click to open context menu, so we provide this alternative
+    result ||= rl.IsMouseButtonPressed(.LEFT) && rl.IsKeyDown(.LEFT_SHIFT)
+    return result
+}
 
 init :: proc() {
     when ODIN_DEBUG { 	// memory leak tracking
@@ -364,6 +366,7 @@ init :: proc() {
 
     target_fps = rl.GetMonitorRefreshRate(rl.GetCurrentMonitor())
     target_fps = math.min(target_fps, 144) // I had a bug on my monitor which is a very high refresh rate of 240. 144 Hz is pretty standard high, so we just set it to that.
+
     rl.SetTargetFPS(target_fps)
     rl.MaximizeWindow()
     rl.RestoreWindow()
@@ -473,7 +476,7 @@ update :: proc() {
                 length := la.length(vector_from_center_to_mouse)
                 bubble_placement_circle[2] = length
             }
-            if rl.IsMouseButtonPressed(.RIGHT) {
+            if right_click_pressed() {
                 for bubble_id in views[.bubbles].indices {
                     bubble := entity_backing_memory[bubble_id]
                     did_mouse_circle_intersect := rl.CheckCollisionPointCircle(world_mouse_pos, [2]f32{bubble.x, bubble.y}, bubble.width)
@@ -597,7 +600,7 @@ update :: proc() {
     gun.y = clamp(gun.y, 0, max_y(gun))
 
     shoot_grower := !rl.IsKeyDown(.LEFT_SHIFT) && rl.IsMouseButtonPressed(.LEFT) && current_entity_edit_mode == .none
-    shoot_splitter := !rl.IsKeyDown(.LEFT_SHIFT) && rl.IsMouseButtonPressed(.RIGHT) && current_entity_edit_mode == .none
+    shoot_splitter := right_click_pressed() && current_entity_edit_mode == .none
     shoot_bullet := shoot_grower || shoot_splitter
     if shoot_bullet {
         gun_center := [2]f32{ gun.x + gun.width / 2, gun.y + gun.height / 2 }
@@ -864,18 +867,18 @@ update :: proc() {
         using level_transition_state
 
         level_transition_speed :: 2
-        text_fade_amount :: level_transition_speed
+        text_fade_amount :: level_transition_speed * 80
 
         handle_curtain: if active {
             text_still_fading = true
 
             old_curtain_x := curtain.x
+            curtain.x += level_transition_speed * delta_time
+
             if (curtain.x >= 1) {
                 level_transition_state.non_text_related = {}
                 break handle_curtain
             }
-
-            curtain.x += level_transition_speed * delta_time
 
             if old_curtain_x < 0 && 0 <= curtain.x {
                 current_level_index = new_level_index
@@ -888,7 +891,9 @@ update :: proc() {
         }
 
         if text_still_fading {
-            opacity += text_fade_amount * 4 if text_fading == .in_ else -text_fade_amount
+            opacity_float := cast(f32) opacity
+            opacity_float += delta_time * (text_fade_amount * 4 if text_fading == .in_ else -text_fade_amount)
+            opacity = auto_cast opacity_float
             opacity = clamp(0, opacity, 255)
 
             font_size :: 50
