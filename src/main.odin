@@ -1,7 +1,6 @@
 package game
 
 import rl "vendor:raylib"
-import "core:slice"
 import "base:intrinsics"
 import "core:math"
 import "core:mem"
@@ -14,7 +13,7 @@ breakpoint :: intrinsics.debug_trap
 
 game_name :: "bubble"
 
-Color :: enum { black, blue, dark_blue, purple, red, white, light_grey, green, orange, gold }
+Color :: enum { black, blue, dark_blue, purple, red, white, light_grey, green, gold }
 colors := [Color][4]u8{
     .black = { 0, 0, 0, 255 },
     .blue = { 0, 0, 255, 255 },
@@ -25,41 +24,7 @@ colors := [Color][4]u8{
     .green = { 0, 200, 0, 255 },
     .gold = { 255, 215, 0, 255 },
     .white = { 255, 255, 255, 255 },
-    .orange = { 0, 120, 170, 255 },
-}
-
-Entity :: struct {
-    using rect: rl.Rectangle,
-    velocity: [2]f32,
-    accel: [2]f32,
-    color: Color,
-    pop_anim_timer: f32,
-    pop_anim_time_amount: f32,
-}
-
-ENTITY_CAP :: 256
-entity_backing_memory: [ENTITY_CAP]Entity
-
-Entity_Index :: distinct int
-entity_view_backing_memory: [ENTITY_CAP]Entity_Index
-entity_view := slice.into_dynamic(entity_view_backing_memory[:])
-
-Entity_View :: struct {
-    indices: [dynamic]Entity_Index,
-    backing_memory: [ENTITY_CAP]Entity_Index,
-}
-
-View_Id :: enum {
-    freelist,
-    active,
-    bubbles,
-    popping_bubbles,
-    growers,
-    splitters,
-    obstacles,
-    guns,
-    end_goals,
-    end_goals_completed,
+    // .orange = { 0, 120, 170, 255 },
 }
 
 Level :: struct {
@@ -74,17 +39,7 @@ Level :: struct {
 
 current_level_index := 0
 NUM_LEVELS :: 9
-
-gun_width :: 0.02
-gun_initial_state :: Entity{
-    // NOTE(felix): position is set per-level
-    width = gun_width, height = gun_width,
-    color = .purple,
-}
-
 levels : [NUM_LEVELS]Level
-
-
 level_data_filename := "assets/data.json"
 
 write_levels_to_json_file :: proc() {
@@ -94,19 +49,17 @@ write_levels_to_json_file :: proc() {
         fmt.eprintf("error marshalling json: %v\n", err)
         return
     }
-    file_name := level_data_filename
-    ok := write_entire_file(file_name, json_data)
+    ok := write_entire_file(level_data_filename, json_data)
     if !ok {
-        fmt.eprintf("error writing to file: %v\n", file_name)
+        fmt.eprintf("error writing to file: %v\n", level_data_filename)
         return
     }
 }
 
 read_levels_from_json_file :: proc() {
-    file_name := level_data_filename
-    json_data, ok := read_entire_file(file_name)
+    json_data, ok := read_entire_file(level_data_filename)
     if !ok {
-        fmt.eprintf("error reading from file: %v\n", file_name)
+        fmt.eprintf("error reading from file: %v\n", level_data_filename)
         return
     }
     err := json.unmarshal(json_data, &levels)
@@ -115,8 +68,6 @@ read_levels_from_json_file :: proc() {
         return
     }
 }
-
-
 
 reset_entities_from_level :: proc() {
     for view_id in View_Id {
@@ -137,9 +88,13 @@ reset_entities_from_level :: proc() {
         push_entity(entity, .bubbles)
     }
 
-    gun := gun_initial_state
-    gun.x = level.gun_initial_position.x
-    gun.y = level.gun_initial_position.y
+    gun_width :: 0.02
+    gun := Entity{
+        x = level.gun_initial_position.x,
+        y = level.gun_initial_position.y,
+        width = gun_width, height = gun_width,
+        color = .purple,
+    }
 
     level.gun_id = push_entity(gun, .guns)
 }
@@ -164,54 +119,12 @@ entity_edit_mode_name_map := [Entity_Edit_Mode]cstring {
     .none     = "",
 }
 
-entity_view_init :: proc(view: ^Entity_View) -> Entity_View {
-    view.indices = slice.into_dynamic(view.backing_memory[:])
-    return view^
-}
-
-views := [View_Id]Entity_View{
-    .bubbles = entity_view_init(&{}),
-    .popping_bubbles = entity_view_init(&{}),
-    .growers = entity_view_init(&{}),
-    .splitters = entity_view_init(&{}),
-    .obstacles = entity_view_init(&{}),
-    .freelist = entity_view_init(&{}),
-    .end_goals = entity_view_init(&{}),
-    .end_goals_completed = entity_view_init(&{}),
-    .guns = entity_view_init(&{}),
-    .active = entity_view_init(&{}),
-}
-
 nb_cells_width : f32 = 64
 nb_cells_height : f32 = nb_cells_width / f32(16) * f32(9)
 
 cell_size : f32 = auto_cast f32(1.0)/nb_cells_width
 
-push_entity :: proc(entity: Entity, views_to_append: ..View_Id) -> Entity_Index {
-    index, ok := pop_safe(&views[.freelist].indices)
-    append_elem(&views[.active].indices, index)
-    assert(ok)
-    entity_backing_memory[index] = entity
-
-    for id in views_to_append do append_elem(&views[id].indices, index)
-    return index
-}
-
-remove_entity :: proc(entity_id: Entity_Index, view_ids: ..View_Id, free: bool = true) {
-    if free {
-        append_elem(&views[.freelist].indices, entity_id)
-        index, found := slice.linear_search(views[.active].indices[:], entity_id)
-        assert(found)
-        unordered_remove(&views[.active].indices, index)
-    }
-
-    for view_id in view_ids {
-        view := &views[view_id]
-        index, _ := slice.linear_search(view.indices[:], entity_id)
-        unordered_remove(&view.indices, index)
-    }
-}
-
+world_height: f32 : 9.0 / 16.0
 screen_size := [2]f32{ 1200, 675 }
 screen_from_world_scalar: f32
 screen_margin_y: f32
@@ -259,7 +172,6 @@ world_from_screen :: #force_inline proc(value: $T) -> T {
     return result;
 }
 
-placement_unnormalized_rectangle := rl.Rectangle{0,0,0,0}
 absolute_normalized_rectangle :: proc(r: rl.Rectangle) -> rl.Rectangle {
     ret := rl.Rectangle{
         x = math.min(r.x, r.x + r.width),
@@ -270,55 +182,28 @@ absolute_normalized_rectangle :: proc(r: rl.Rectangle) -> rl.Rectangle {
     return ret
 }
 
+
+placement_unnormalized_rectangle := rl.Rectangle{0,0,0,0}
 bubble_placement_circle := [3]f32{0,0,0}
-
-world_height: f32 : 9.0 / 16.0
-
-snap_rectangle_to_grid :: proc(r: rl.Rectangle) -> rl.Rectangle {
-    ret := rl.Rectangle{
-        x = math.floor(r.x / cell_size) * cell_size,
-        y = math.floor(r.y / cell_size) * cell_size,
-        width = math.ceil(r.width / cell_size) * cell_size,
-        height = math.ceil(r.height / cell_size) * cell_size,
-    }
-    return ret
-}
-
 save_screen_flash_time_amount : f32 = 0.5
 save_screen_flash_timer := f32(0)
 
-create_pop_ripple_from_circle :: proc(pos: [2]f32, radius: f32, color: Color) {
-    new_popping_bubble := Entity{
-        x = pos.x,
-        y = pos.y,
-        width = radius,
-        color = color,
-    }
-    new_popping_bubble.pop_anim_time_amount = 0.25
-    new_popping_bubble.pop_anim_timer = new_popping_bubble.pop_anim_time_amount
-    push_entity(new_popping_bubble, .popping_bubbles)
-    new_popping_bubble.width /= 2
-    new_popping_bubble.pop_anim_time_amount = 0.22
-    new_popping_bubble.pop_anim_timer = new_popping_bubble.pop_anim_time_amount
-    push_entity(new_popping_bubble, .popping_bubbles)
-    new_popping_bubble.width = 0.0001
-    new_popping_bubble.pop_anim_time_amount = 0.19
-    new_popping_bubble.pop_anim_timer = new_popping_bubble.pop_anim_time_amount
-    push_entity(new_popping_bubble, .popping_bubbles)
-
-    reset_and_play_sfx(pop_sfx)
-}
 
 editor_handle_input_for_placement_rectangle_and_rectangular_entity_creation  :: proc(view_id: View_Id, world_mouse_pos: [2]f32, color_for_creation: Color = .black)
 {
     if rl.IsMouseButtonReleased(.LEFT) && placement_unnormalized_rectangle.width != 0 && placement_unnormalized_rectangle.height != 0 {
-        using normalized_rectangle_to_place := absolute_normalized_rectangle(placement_unnormalized_rectangle)
+        normalized_rectangle_to_place := absolute_normalized_rectangle(placement_unnormalized_rectangle)
 
         clamp_low :: max
-        width = clamp_low(width, cell_size)
-        height = clamp_low(height, cell_size)
+        normalized_rectangle_to_place.width = clamp_low(normalized_rectangle_to_place.width, cell_size)
+        normalized_rectangle_to_place.height = clamp_low(normalized_rectangle_to_place.height, cell_size)
 
-        snap_adjusted_normalized_rectangle_to_place := snap_rectangle_to_grid(normalized_rectangle_to_place)
+        snap_adjusted_normalized_rectangle_to_place := rl.Rectangle{
+            x     = math.floor(normalized_rectangle_to_place.x / cell_size) * cell_size,
+            y     = math.floor(normalized_rectangle_to_place.y / cell_size) * cell_size,
+            width  = math.ceil(normalized_rectangle_to_place.width / cell_size) * cell_size,
+            height = math.ceil(normalized_rectangle_to_place.height / cell_size) * cell_size,
+        }
         entity := Entity{
             rect = snap_adjusted_normalized_rectangle_to_place,
             color = color_for_creation,
@@ -374,11 +259,10 @@ begin_transition_to_level :: proc(new_level_index: int) {
         render_curtain = true,
     }
 
-    using level_transition_state
-    retrying_same_level := new_level_index == current_level_index
+    is_retrying_level := new_level_index == current_level_index
 
-    curtain_color = .red if retrying_same_level else .blue
-    text = "again!" if retrying_same_level else levels[new_level_index].name
+    level_transition_state.curtain_color = .red if is_retrying_level else .blue
+    level_transition_state.text = "again!" if is_retrying_level else levels[new_level_index].name
 }
 
 pop_sfx : rl.Sound
@@ -386,21 +270,70 @@ grow_sfx : rl.Sound
 end_goal_hit_sfx : rl.Sound
 switch_sides_sfx : rl.Sound
 
-
-
-reset_and_play_sfx :: proc(sfx: rl.Sound) {
+stop_and_play_sfx :: proc(sfx: rl.Sound) {
     rl.StopSound(sfx)
     rl.PlaySound(sfx)
 }
 
+create_pop_ripple_from_circle :: proc(pos: [2]f32, radius: f32, color: Color) {
+    new_popping_bubble := Entity{
+        x = pos.x,
+        y = pos.y,
+        width = radius,
+        color = color,
+    }
+    new_popping_bubble.pop_anim_time_amount = 0.25
+    new_popping_bubble.pop_anim_timer = new_popping_bubble.pop_anim_time_amount
+    push_entity(new_popping_bubble, .popping_bubbles)
+    new_popping_bubble.width /= 2
+    new_popping_bubble.pop_anim_time_amount = 0.22
+    new_popping_bubble.pop_anim_timer = new_popping_bubble.pop_anim_time_amount
+    push_entity(new_popping_bubble, .popping_bubbles)
+    new_popping_bubble.width = 0.0001
+    new_popping_bubble.pop_anim_time_amount = 0.19
+    new_popping_bubble.pop_anim_timer = new_popping_bubble.pop_anim_time_amount
+    push_entity(new_popping_bubble, .popping_bubbles)
+
+    stop_and_play_sfx(pop_sfx)
+}
+
+draw_text :: proc(text: cstring, position_world: [2]f32, font_size_world: f32, color: Color = .black, rotation: f32 = 0, spacing: f32 = 1) {
+    font := rl.GetFontDefault()
+    position := screen_from_world(position_world)
+    origin := [2]f32{}
+    font_size := screen_from_world(font_size_world)
+    tint := colors[color]
+    rl.DrawTextPro(font, text, position, origin, rotation, font_size, spacing, auto_cast tint)
+}
+
+
+parent_window_size_changed :: proc(w, h: int) {
+	rl.SetWindowSize(c.int(w), c.int(h))
+}
+
+
 run := true
+should_run :: proc() -> bool {
+	when ODIN_OS != .JS {
+		// Never run this proc in browser. It contains a 16 ms sleep on web!
+		if rl.WindowShouldClose() {
+			run = false
+		}
+	}
+
+	return run
+}
+
+
+
+
+
+
+target_fps: c.int
 track: mem.Tracking_Allocator
 temp_track: mem.Tracking_Allocator
 
-target_fps: c.int
-
 init :: proc() {
-
     when ODIN_DEBUG { 	// memory leak tracking
 		mem.tracking_allocator_init(&track, context.allocator)
 		mem.tracking_allocator_init(&temp_track, context.temp_allocator)
@@ -439,9 +372,44 @@ init :: proc() {
     reset_entities_from_level()
 }
 
-parent_window_size_changed :: proc(w, h: int) {
-	rl.SetWindowSize(c.int(w), c.int(h))
+shutdown :: proc() {
+    when ODIN_DEBUG {
+        if len(track.bad_free_array) > 0 {
+            for entry in track.bad_free_array {
+                fmt.eprintf(
+                    "%v bad free at %v\n",
+                    entry.location,
+                    entry.memory,
+                )
+            }
+        }
+        if len(temp_track.allocation_map) > 0 {
+            for _, entry in temp_track.allocation_map {
+                fmt.eprintf(
+                    "temp_allocator %v leaked %v bytes\n",
+                    entry.location,
+                    entry.size,
+                )
+            }
+        }
+        if len(temp_track.bad_free_array) > 0 {
+            for entry in temp_track.bad_free_array {
+                fmt.eprintf(
+                    "temp_allocator %v bad free at %v\n",
+                    entry.location,
+                    entry.memory,
+                )
+            }
+        }
+        mem.tracking_allocator_destroy(&track)
+        mem.tracking_allocator_destroy(&temp_track)
+    }
+    rl.CloseAudioDevice()
+	rl.CloseWindow()
 }
+
+
+
 
 update :: proc() {
     if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.B) {
@@ -615,8 +583,7 @@ update :: proc() {
             else if gun.x == max_x(gun) do gun.x = 0
         }
 
-        reset_and_play_sfx(switch_sides_sfx)
-
+        stop_and_play_sfx(switch_sides_sfx)
         create_pop_ripple_from_circle([2]f32{gun.x, gun.y}, gun.width, gun.color)
     }
 
@@ -655,20 +622,23 @@ update :: proc() {
         push_entity(bullet, view_id)
     }
 
+    bubble_grow_amount :: 0.003
+    bubble_too_small_amount : f32 = 0.003
+
     bubbles: for entity_id in views[.bubbles].indices { // update bubbles
-        using entity := &entity_backing_memory[entity_id]
+        bubble := &entity_backing_memory[entity_id]
 
         for splitter_id in views[.splitters].indices {
             splitter := &entity_backing_memory[splitter_id]
 
-            screen_bubble_pos := screen_from_world([2]f32{ entity.x, entity.y })
-            screen_bubble_radius := screen_from_world(entity.width)
+            screen_bubble_pos := screen_from_world([2]f32{ bubble.x, bubble.y })
+            screen_bubble_radius := screen_from_world(bubble.width)
             screen_splitter_rectangle := screen_from_world(splitter.rect)
             intersect := rl.CheckCollisionCircleRec(screen_bubble_pos, screen_bubble_radius, screen_splitter_rectangle)
 
             if !intersect do continue
 
-            new_popping_bubble := entity^
+            new_popping_bubble := bubble^
             create_pop_ripple_from_circle([2]f32{new_popping_bubble.x, new_popping_bubble.y}, new_popping_bubble.width, new_popping_bubble.color)
 
             vector := la.normalize(splitter.velocity)
@@ -676,15 +646,15 @@ update :: proc() {
             new_velocity := vector * velocity_factor
             first_bubble_velocity_rotated_90_degrees := rl.Vector2Rotate(new_velocity, math.to_radians_f32(45))
             second_bubble_velocity_rotated_90_degrees := rl.Vector2Rotate(new_velocity, math.to_radians_f32(-45))
-            entity.width /= 2
+            bubble.width /= 2
 
-            entity.velocity = first_bubble_velocity_rotated_90_degrees
+            bubble.velocity = first_bubble_velocity_rotated_90_degrees
 
             new_bubble := Entity{
-                x = entity.x,
-                y = entity.y,
-                width = entity.width,
-                color = entity.color,
+                x = bubble.x,
+                y = bubble.y,
+                width = bubble.width,
+                color = bubble.color,
                 velocity = second_bubble_velocity_rotated_90_degrees,
             }
             push_entity(new_bubble, .bubbles)
@@ -696,8 +666,8 @@ update :: proc() {
 
         for grower_id in views[.growers].indices {
             grower := &entity_backing_memory[grower_id]
-            screen_bubble_pos := screen_from_world([2]f32{ entity.x, entity.y })
-            screen_bubble_radius := screen_from_world(entity.width)
+            screen_bubble_pos := screen_from_world([2]f32{ bubble.x, bubble.y })
+            screen_bubble_radius := screen_from_world(bubble.width)
             screen_grower_rectangle := screen_from_world(grower.rect)
             intersect := rl.CheckCollisionCircleRec(screen_bubble_pos, screen_bubble_radius, screen_grower_rectangle)
 
@@ -705,18 +675,18 @@ update :: proc() {
 
             vector := la.normalize(grower.velocity)
             velocity_factor :: 0.1
-            entity.velocity = vector * velocity_factor
-            entity.width *= 1.05
+            bubble.velocity = vector * velocity_factor
+            bubble.width += bubble_grow_amount
 
-            reset_and_play_sfx(grow_sfx)
+            stop_and_play_sfx(grow_sfx)
 
             remove_entity(grower_id, .growers)
         }
 
-        colliding_screen_edge_horizontal := x - width <= 0 || 1 <= x + width
-        colliding_screen_edge_vertical := y - width <= 0 || world_height <= y + width
+        colliding_screen_edge_horizontal := bubble.x - bubble.width <= 0 || 1 <= bubble.x + bubble.width
+        colliding_screen_edge_vertical := bubble.y - bubble.width <= 0 || world_height <= bubble.y + bubble.width
         if colliding_screen_edge_horizontal || colliding_screen_edge_vertical {
-            new_popping_bubble := entity^
+            new_popping_bubble := bubble^
             create_pop_ripple_from_circle([2]f32{new_popping_bubble.x, new_popping_bubble.y}, new_popping_bubble.width, new_popping_bubble.color)
             remove_entity(entity_id, .bubbles, free = true)
             continue bubbles
@@ -729,10 +699,9 @@ update :: proc() {
         entity.y += entity.velocity.y * delta_time
     }
 
-    bubble_to_small_amount : f32 = 0.003
     for bubble_id in views[.bubbles].indices { // "pop" bubbles if they touch an obstacle or get too small
         entity := &entity_backing_memory[bubble_id]
-        if entity.width < bubble_to_small_amount { // too small
+        if entity.width < bubble_too_small_amount { // too small
             new_popping_bubble := entity^
             create_pop_ripple_from_circle([2]f32{new_popping_bubble.x, new_popping_bubble.y}, new_popping_bubble.width, new_popping_bubble.color)
 
@@ -778,7 +747,7 @@ update :: proc() {
                 end_goal_entity.color = .gold
                 append_elem(&views[.end_goals_completed].indices, end_goal_index)
 
-                reset_and_play_sfx(end_goal_hit_sfx)
+                stop_and_play_sfx(end_goal_hit_sfx)
                 break
             }
         }
@@ -794,7 +763,7 @@ update :: proc() {
     }
 
     projectile_views :: [?]View_Id{ .splitters, .growers }
-    for view_id in projectile_views {
+    for view_id in projectile_views { // remove off-screen projectiles
         view := &views[view_id]
         for entity_id in view.indices {
             using entity := &entity_backing_memory[entity_id]
@@ -807,12 +776,22 @@ update :: proc() {
         }
     }
 
-
-    draw_grid(cell_size)
+    { // draw grid
+        tint := rl.Color{0,0,0,10}
+        for x : f32 = 0.0; x < 1.0; x += cell_size {
+            screen_start_pos := screen_from_world([2]f32{ x, 0 })
+            screen_end_pos := screen_from_world([2]f32{ x, 1 })
+            rl.DrawLineEx(screen_start_pos, screen_end_pos, 1, auto_cast tint)
+        }
+        for y: f32 = 0.0; y < 16/9; y += cell_size {
+            screen_start_pos := screen_from_world([2]f32{ 0, y })
+            screen_end_pos := screen_from_world([2]f32{ 1, y })
+            rl.DrawLineEx(screen_start_pos, screen_end_pos, 1, auto_cast tint)
+        }
+    }
 
 
     for entity_id in views[.popping_bubbles].indices { // draw popping bubbles
-        // will be drawn as circle lines instead of solid
         bubble := &entity_backing_memory[entity_id]
         screen_pos := screen_from_world([2]f32{ bubble.x, bubble.y })
         screen_radius := screen_from_world(bubble.width)
@@ -829,12 +808,14 @@ update :: proc() {
         bubble := &entity_backing_memory[entity_id]
         screen_pos := screen_from_world([2]f32{ bubble.x, bubble.y })
         screen_radius := screen_from_world(bubble.width)
-        color := bubble.color
-        if bubble.width <= bubble_to_small_amount * 2 do color = .orange
-        rl.DrawCircleV(screen_pos, screen_radius, auto_cast colors[color])
+        color := colors[bubble.color]
+        will_bubble_pop_on_next_split := bubble.width < bubble_grow_amount + bubble_too_small_amount
+        if will_bubble_pop_on_next_split do rl.DrawCircleLinesV(screen_pos, screen_radius, auto_cast color)
+        else do rl.DrawCircleV(screen_pos, screen_radius, auto_cast color)
+
     }
 
-    { // draw ed stuff
+    { // draw editor specific stuff
         obstacle_placement_rectangle := absolute_normalized_rectangle(placement_unnormalized_rectangle)
         rl.DrawRectangleRec(screen_from_world(obstacle_placement_rectangle), auto_cast colors[.black])
 
@@ -871,7 +852,6 @@ update :: proc() {
     draw_text(level.hint, { padding.x, world_height - padding.y }, hint_font_size)
 
     { // draw debug visualizer
-        // draw small circle where mouse is being held down with left click
         if rl.IsMouseButtonDown(.LEFT) {
             screen_pos := screen_from_world([2]f32{ world_mouse_pos.x, world_mouse_pos.y })
             rl.DrawCircleV(screen_pos, 20, auto_cast colors[.red])
@@ -948,81 +928,8 @@ update :: proc() {
     rl.DrawLineEx(bottom_boundary_start, bottom_boundary_end, thickness * 2, boundary_color)
 }
 
-
-shutdown :: proc() {
-    when ODIN_DEBUG {
-        if len(track.bad_free_array) > 0 {
-            for entry in track.bad_free_array {
-                fmt.eprintf(
-                    "%v bad free at %v\n",
-                    entry.location,
-                    entry.memory,
-                )
-            }
-        }
-        if len(temp_track.allocation_map) > 0 {
-            for _, entry in temp_track.allocation_map {
-                fmt.eprintf(
-                    "temp_allocator %v leaked %v bytes\n",
-                    entry.location,
-                    entry.size,
-                )
-            }
-        }
-        if len(temp_track.bad_free_array) > 0 {
-            for entry in temp_track.bad_free_array {
-                fmt.eprintf(
-                    "temp_allocator %v bad free at %v\n",
-                    entry.location,
-                    entry.memory,
-                )
-            }
-        }
-        mem.tracking_allocator_destroy(&track)
-        mem.tracking_allocator_destroy(&temp_track)
-    }
-    rl.CloseAudioDevice()
-	rl.CloseWindow()
-}
-
-
-should_run :: proc() -> bool {
-	when ODIN_OS != .JS {
-		// Never run this proc in browser. It contains a 16 ms sleep on web!
-		if rl.WindowShouldClose() {
-			run = false
-		}
-	}
-
-	return run
-}
-
 main :: proc() {
     init()
     for !rl.WindowShouldClose() do update()
     shutdown()
-}
-
-draw_grid :: proc(cell_size: f32, color: Color = .black) {
-    tint := rl.Color{0,0,0,10}
-    for x : f32 = 0.0; x < 1.0; x += cell_size {
-        screen_start_pos := screen_from_world([2]f32{ x, 0 })
-        screen_end_pos := screen_from_world([2]f32{ x, 1 })
-        rl.DrawLineEx(screen_start_pos, screen_end_pos, 1, auto_cast tint)
-
-    }
-    for y: f32 = 0.0; y < 16/9; y += cell_size {
-        screen_start_pos := screen_from_world([2]f32{ 0, y })
-        screen_end_pos := screen_from_world([2]f32{ 1, y })
-        rl.DrawLineEx(screen_start_pos, screen_end_pos, 1, auto_cast tint)
-    }
-}
-
-draw_text :: proc(text: cstring, position_world: [2]f32, font_size_world: f32, color: Color = .black, rotation: f32 = 0, spacing: f32 = 1) {
-    font := rl.GetFontDefault()
-    position := screen_from_world(position_world)
-    origin := [2]f32{}
-    font_size := screen_from_world(font_size_world)
-    tint := colors[color]
-    rl.DrawTextPro(font, text, position, origin, rotation, font_size, spacing, auto_cast tint)
 }
